@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مُعلِّم — المساعد الذكي</title>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.08);
+    --accent: #7c5cbf;
+    --accent2: #5b8ef0;
+    --gold: #c9a84c;
+    --text: #f0ede8;
+    --muted: rgba(240,237,232,0.5);
+    --danger: #e25555;
+    --success: #4caf7d;
+  }
+
+  body {
+    font-family: 'Cairo', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── background ── */
+  .bg-orbs {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  }
+  .orb {
+    position: absolute; border-radius: 50%; filter: blur(120px); opacity: 0.15;
+  }
+  .orb-1 { width: 600px; height: 600px; background: var(--accent); top: -200px; right: -200px; }
+  .orb-2 { width: 400px; height: 400px; background: var(--accent2); bottom: -100px; left: -100px; }
+  .orb-3 { width: 300px; height: 300px; background: var(--gold); top: 50%; left: 50%; transform: translate(-50%,-50%); }
+
+  /* ── layout ── */
+  .container {
+    position: relative; z-index: 1;
+    max-width: 780px; margin: 0 auto; padding: 2rem 1.5rem;
+    min-height: 100vh; display: flex; flex-direction: column;
+  }
+
+  /* ── header ── */
+  header { text-align: center; padding: 3rem 0 2.5rem; }
+  .logo {
+    font-family: 'Amiri', serif;
+    font-size: clamp(3rem, 8vw, 5rem);
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--gold) 0%, #e8c97a 50%, var(--gold) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: 4px;
+    line-height: 1.1;
+  }
+  .tagline {
+    margin-top: 0.75rem;
+    font-size: 1rem; color: var(--muted); font-weight: 300; letter-spacing: 1px;
+  }
+  .divider {
+    width: 60px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    margin: 1.5rem auto 0;
+  }
+
+  /* ── cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 1.75rem;
+    margin-bottom: 1.25rem;
+    transition: border-color 0.3s;
+  }
+  .card:hover { border-color: rgba(255,255,255,0.14); }
+  .card-title {
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 2px;
+    color: var(--gold); text-transform: uppercase; margin-bottom: 1.25rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title::before {
+    content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--gold);
+  }
+
+  /* ── upload zone ── */
+  .upload-zone {
+    border: 1.5px dashed rgba(124,92,191,0.4);
+    border-radius: 14px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(124,92,191,0.07);
+  }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 2.5rem; margin-bottom: 0.75rem; opacity: 0.7; }
+  .upload-text { font-size: 0.95rem; color: var(--muted); }
+  .upload-text strong { color: var(--text); font-weight: 600; }
+
+  /* ── status badge ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 100px; font-size: 0.8rem; font-weight: 600;
+    margin-top: 1rem;
+  }
+  .badge-wait { background: rgba(255,255,255,0.06); color: var(--muted); }
+  .badge-loading { background: rgba(91,142,240,0.15); color: var(--accent2); }
+  .badge-ok { background: rgba(76,175,125,0.15); color: var(--success); }
+  .badge-err { background: rgba(226,85,85,0.15); color: var(--danger); }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .dot.pulse { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* ── record button ── */
+  .record-area { display: flex; flex-direction: column; align-items: center; gap: 1.25rem; }
+  .rec-btn {
+    width: 80px; height: 80px; border-radius: 50%;
+    border: 2px solid rgba(124,92,191,0.5);
+    background: var(--surface2);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 1.75rem;
+    transition: all 0.25s;
+    position: relative;
+  }
+  .rec-btn:hover { border-color: var(--accent); transform: scale(1.05); }
+  .rec-btn.recording {
+    border-color: var(--danger);
+    background: rgba(226,85,85,0.12);
+    animation: ring 1.5s infinite;
+  }
+  @keyframes ring {
+    0% { box-shadow: 0 0 0 0 rgba(226,85,85,0.4); }
+    70% { box-shadow: 0 0 0 16px rgba(226,85,85,0); }
+    100% { box-shadow: 0 0 0 0 rgba(226,85,85,0); }
+  }
+  .rec-label { font-size: 0.85rem; color: var(--muted); }
+  .rec-label.recording { color: var(--danger); font-weight: 600; }
+
+  /* ── send button ── */
+  .send-btn {
+    width: 100%; padding: 0.9rem;
+    border-radius: 12px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff; font-family: 'Cairo', sans-serif;
+    font-size: 1rem; font-weight: 700; letter-spacing: 1px;
+    transition: all 0.25s;
+  }
+  .send-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+  .send-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+  /* ── answer ── */
+  .answer-card {
+    background: var(--surface);
+    border: 1px solid rgba(124,92,191,0.25);
+    border-radius: 20px; padding: 1.75rem;
+    margin-bottom: 1.25rem;
+    animation: fadeUp 0.4s ease;
+  }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  .answer-text {
+    font-size: 1.05rem; line-height: 2; color: var(--text);
+    direction: rtl; text-align: right;
+  }
+  audio {
+    width: 100%; margin-top: 1.25rem; border-radius: 10px;
+    filter: invert(1) hue-rotate(180deg); opacity: 0.85;
+  }
+
+  /* ── history ── */
+  .history { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.25rem; }
+  .msg {
+    padding: 1rem 1.25rem; border-radius: 14px;
+    font-size: 0.95rem; line-height: 1.8;
+    direction: rtl; text-align: right;
+    animation: fadeUp 0.3s ease;
+  }
+  .msg-user {
+    background: rgba(124,92,191,0.12);
+    border: 1px solid rgba(124,92,191,0.2);
+    align-self: flex-end; max-width: 85%;
+  }
+  .msg-ai {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    align-self: flex-start; max-width: 95%;
+  }
+  .msg-label {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 1.5px;
+    margin-bottom: 0.4rem; opacity: 0.6;
+  }
+
+  /* ── loading spinner ── */
+  .spinner {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.15);
+    border-top-color: #fff;
+    animation: spin 0.7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to{transform:rotate(360deg)} }
+
+  /* ── footer ── */
+  footer { text-align: center; padding: 2rem 0 1rem; color: var(--muted); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+
+<div class="bg-orbs">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+</div>
+
+<div class="container">
+  <header>
+    <div class="logo">مُعلِّم</div>
+    <p class="tagline">مساعدك الذكي للتعلم باللغة العربية</p>
+    <div class="divider"></div>
+  </header>
+
+  <!-- Upload -->
+  <div class="card" id="uploadCard">
+    <div class="card-title">الخطوة الأولى — ارفع المستند</div>
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="pdfInput" accept=".pdf">
+      <div class="upload-icon">📄</div>
+      <div class="upload-text">
+        <strong>اسحب الملف هنا</strong> أو اضغط للاختيار<br>
+        <span style="font-size:0.8rem">PDF فقط</span>
+      </div>
+    </div>
+    <div style="text-align:center">
+      <span class="badge badge-wait" id="uploadBadge">
+        <span class="dot"></span> في انتظار الملف
+      </span>
+    </div>
+  </div>
+
+  <!-- Record -->
+  <div class="card" id="recordCard" style="opacity:0.4;pointer-events:none;">
+    <div class="card-title">الخطوة الثانية — اسأل بصوتك</div>
+    <div class="record-area">
+      <button class="rec-btn" id="recBtn" onclick="toggleRecord()">🎙️</button>
+      <span class="rec-label" id="recLabel">اضغط للتسجيل</span>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:0.25rem;">
+        <div style="height:1px;width:60px;background:var(--border);"></div>
+        <span style="font-size:0.75rem;color:var(--muted);">أو</span>
+        <div style="height:1px;width:60px;background:var(--border);"></div>
+      </div>
+      <label style="cursor:pointer;color:var(--accent2);font-size:0.85rem;display:flex;align-items:center;gap:6px;">
+        📁 ارفع ملف صوتي
+        <input type="file" id="audioInput" accept="audio/*,.m4a,.mkv,.mp4,.webm,.ogg" style="display:none">
+      </label>
+    </div>
+    <br>
+    <button class="send-btn" id="sendBtn" onclick="sendQuestion()" disabled>
+      إرسال السؤال
+    </button>
+    <div style="text-align:center; margin-top:0.75rem; min-height:24px" id="sendStatus"></div>
+  </div>
+
+  <!-- History -->
+  <div class="history" id="historyEl"></div>
+
+  <!-- Latest answer audio -->
+  <div id="latestAudio"></div>
+
+  <footer>مُعلِّم — مدعوم بـ Whisper · LLaMA 3.3 · ElevenLabs</footer>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+let sessionId = null;
+let audioBlob = null;
+let mediaRecorder = null;
+let chunks = [];
+let recording = false;
+
+// ── drag & drop ──
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') uploadPDF(file);
+});
+document.getElementById('pdfInput').addEventListener('change', e => {
+  if (e.target.files[0]) uploadPDF(e.target.files[0]);
+});
+
+function setBadge(id, cls, dot, text) {
+  const el = document.getElementById(id);
+  el.className = 'badge ' + cls;
+  el.innerHTML = `<span class="dot ${dot}"></span> ${text}`;
+}
+
+async function uploadPDF(file) {
+  setBadge('uploadBadge', 'badge-loading', 'pulse', 'جاري الرفع والمعالجة...');
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch(API + '/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.session_id) {
+      sessionId = d.session_id;
+      setBadge('uploadBadge', 'badge-ok', '', `✓ جاهز — ${d.chunks} قسم`);
+      // unlock record card
+      document.getElementById('recordCard').style.opacity = '1';
+      document.getElementById('recordCard').style.pointerEvents = 'auto';
+    } else throw new Error(JSON.stringify(d));
+  } catch(e) {
+    setBadge('uploadBadge', 'badge-err', '', 'فشل الرفع — حاول مرة أخرى');
+  }
+}
+
+document.getElementById('audioInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  audioBlob = file;
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('recLabel').textContent = `✓ ${file.name}`;
+  document.getElementById('recLabel').className = 'rec-label';
+});
+
+async function toggleRecord() {
+  const btn = document.getElementById('recBtn');
+  const label = document.getElementById('recLabel');
+  if (!recording) {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      audioBlob = new Blob(chunks, { type: 'audio/wav' });
+      document.getElementById('sendBtn').disabled = false;
+      label.textContent = 'تم التسجيل ✓';
+      label.className = 'rec-label';
+    };
+    mediaRecorder.start();
+    recording = true;
+    btn.classList.add('recording');
+    btn.textContent = '⏹️';
+    label.textContent = 'جاري التسجيل... اضغط للإيقاف';
+    label.className = 'rec-label recording';
+  } else {
+    mediaRecorder.stop();
+    mediaRecorder.stream.getTracks().forEach(t => t.stop());
+    recording = false;
+    btn.classList.remove('recording');
+    btn.textContent = '🎙️';
+  }
+}
+
+async function sendQuestion() {
+  if (!sessionId || !audioBlob) return;
+  const status = document.getElementById('sendStatus');
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  status.innerHTML = '<span style="color:var(--muted);font-size:0.85rem">جاري التحليل والإجابة...</span>';
+
+  const fd = new FormData();
+  fd.append('session_id', sessionId);
+  fd.append('audio_file', audioBlob, 'audio.wav');
+
+  try {
+    const r = await fetch(API + '/ask', { method: 'POST', body: fd });
+    const d = await r.json();
+
+    // add to history
+    addMessage('user', d.query || 'سؤالك');
+    addMessage('ai', d.answer);
+
+    // play audio
+    if (d.audio) {
+      const el = document.getElementById('latestAudio');
+      el.innerHTML = `<audio controls autoplay src="data:audio/mp3;base64,${d.audio}"></audio>`;
+    }
+
+    status.innerHTML = '';
+    btn.innerHTML = 'إرسال السؤال';
+    btn.disabled = false;
+    audioBlob = null;
+    document.getElementById('recLabel').textContent = 'اضغط للتسجيل';
+  } catch(e) {
+    status.innerHTML = `<span style="color:var(--danger);font-size:0.85rem">حدث خطأ — حاول مرة أخرى</span>`;
+    btn.innerHTML = 'إرسال السؤال';
+    btn.disabled = false;
+  }
+}
+
+function addMessage(role, text) {
+  const h = document.getElementById('historyEl');
+  const div = document.createElement('div');
+  div.className = role === 'user' ? 'msg msg-user' : 'msg msg-ai';
+  div.innerHTML = `
+    <div class="msg-label">${role === 'user' ? 'أنت' : 'مُعلِّم'}</div>
+    <div>${text}</div>
+  `;
+  h.appendChild(div);
+  div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+</script>
+</body>
+</html>
