@@ -17,7 +17,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from dotenv import load_dotenv
-from langchain_chroma import Chroma
+from langchain_qdrant import QdrantVectorStore
+from qdrant_client import QdrantClient
 from langsmith import traceable
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.documents import Document
