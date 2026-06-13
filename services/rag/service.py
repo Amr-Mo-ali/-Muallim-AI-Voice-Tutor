@@ -2,14 +2,13 @@
 service.py — Muallim RAG pipeline
 Responsibilities:
   - PDF loading & chunking
-  - Embedding + Chroma vector store (idempotent with content hash)
+  - Embedding + QdrantVectorStore (idempotent)
   - Semantic retrieval via MMR
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
+
 import logging
 import os
 import tempfile
@@ -17,29 +16,27 @@ from functools import lru_cache
 from pathlib import Path
 
 from dotenv import load_dotenv
-from langchain_chroma import Chroma
+
+from langchain_qdrant import QdrantVectorStore
 from langsmith import traceable
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from qdrant_client import QdrantClient
 
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
-
 # ── env ───────────────────────────────────────────────────────────────────────
 load_dotenv()
-
-_CHROMA_BASE_DIR = os.getenv("CHROMA_DB_DIR", "data/chroma_db")
-
+_QDRANT_URL = os.getenv("QDRANT_URL")
+_QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 # ── constants ─────────────────────────────────────────────────────────────────
 _CHUNK_SIZE         = 512
 _CHUNK_OVERLAP      = 100
 _RETRIEVER_K        = 3
 _RETRIEVER_FETCH_K  = 10
-
 _EMBEDDING_MODEL    = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-_HASH_FILENAME      = "pdf_hash.json"
 
 # ── singletons ────────────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
@@ -50,39 +47,14 @@ def _get_embeddings() -> HuggingFaceEmbeddings:
         model_kwargs={"device": "cpu"},
         encode_kwargs={"batch_size": 32},
     )
-
-
-# ── hash helpers ──────────────────────────────────────────────────────────────
-def _chunks_sha256(chunks: list[Document]) -> str:
-    """Deterministic SHA-256 of all chunk contents."""
-    h = hashlib.sha256()
-    for doc in chunks:
-        h.update(doc.page_content.encode("utf-8"))
-    return h.hexdigest()
-
-
-def _read_stored_hash(persist_dir: str) -> str | None:
-    hash_file = Path(persist_dir) / _HASH_FILENAME
-    if hash_file.exists():
-        try:
-            return json.loads(hash_file.read_text(encoding="utf-8"))["sha256"]
-        except Exception:
-            return None
-    return None
-
-
-def _write_stored_hash(persist_dir: str, sha: str) -> None:
-    hash_file = Path(persist_dir) / _HASH_FILENAME
-    hash_file.parent.mkdir(parents=True, exist_ok=True)
-    hash_file.write_text(json.dumps({"sha256": sha}), encoding="utf-8")
-
-
+@lru_cache(maxsize=1)
+def _get_qdrant_client() -> QdrantClient:
+    return QdrantClient(url=_QDRANT_URL ,api_key=_QDRANT_API_KEY)
 # ── public API ────────────────────────────────────────────────────────────────
 @traceable
 def load_and_chunk(bytes_data: bytes) -> list[Document]:
     """
     Load a PDF from bytes and split it into overlapping chunks.
-    Fixed for Windows permission issues.
     """
     if not bytes_data:
         raise ValueError("PDF cannot be empty.")
@@ -122,51 +94,55 @@ def load_and_chunk(bytes_data: bytes) -> list[Document]:
     logger.info("PDF split into %d chunks", len(chunks))
     return chunks
 
+def count_chunks(collection_name: str) -> int:
+    client = _get_qdrant_client()
+    return client.count(collection_name).count
+
 @traceable
 def get_or_create_vector_store(
-    chunks: list[Document],
-    persist_dir: str | None = None,
-) -> Chroma:
+        chunks: list[Document],
+        collection_name: str
+        ) ->  QdrantVectorStore:
     """
-    Idempotent vector store creator/loader.
+    Idempotent vector store creator 
     """
-    persist_dir = persist_dir or _CHROMA_BASE_DIR
-    current_sha = _chunks_sha256(chunks)
-    stored_sha = _read_stored_hash(persist_dir)
+    client = _get_qdrant_client()
+    exists = client.collection_exists(collection_name)  
+    try:
+        if exists:
+            return QdrantVectorStore(
+                client=client,          
+                collection_name=collection_name,
+                embedding=_get_embeddings(),
+            )
+        else:
+            vector_store = QdrantVectorStore.from_documents(
+                documents=chunks,       
+                embedding=_get_embeddings(),
+                url=_QDRANT_URL,
+                api_key=_QDRANT_API_KEY,
+                collection_name=collection_name,
+            )
+            return vector_store
+    except Exception as e:
+        raise RuntimeError("Failed to Find or create Vector Database") from e
 
-    if stored_sha == current_sha and Path(persist_dir).exists():
-        logger.info("Hash match → loading existing vector store")
-        return Chroma(
-            persist_directory=persist_dir,
-            embedding_function=_get_embeddings(),
-        )
-
-    logger.info("Creating new vector store (hash mismatch or first time)")
-    vector_store = Chroma.from_documents(
-        documents=chunks,
-        embedding=_get_embeddings(),
-        persist_directory=persist_dir,
-    )
-
-    _write_stored_hash(persist_dir, current_sha)
-    logger.info("Vector store created successfully with %d chunks", len(chunks))
-    return vector_store
-
-
-def load_vector_db(persist_dir: str) -> Chroma:
-    """Load existing Chroma for session recovery."""
-    if not Path(persist_dir).exists():
-        raise FileNotFoundError(f"Vector store not found: {persist_dir}")
+def load_vector_db(collection_name: str) -> QdrantVectorStore:
+    """Load existing QdrantVectorStore for session recovery."""
+    client = _get_qdrant_client()
+    if not client.collection_exists(collection_name):
+        raise FileNotFoundError(f"Vector store not found: {collection_name}")
     
-    return Chroma(
-        persist_directory=persist_dir,
-        embedding_function=_get_embeddings(),
+    return QdrantVectorStore(
+        client=client,
+        collection_name=collection_name,
+        embedding=_get_embeddings(),
     )
 
 
 @traceable
-def search_vector_db(vector_store: Chroma, query: str) -> list[Document]:
-    """MMR retrieval for better diversity."""
+def search_vector_db(vector_store: QdrantVectorStore, query: str) -> list[Document]:
+    """Retrieve relevant documents using MMR search."""
     if not query.strip():
         raise ValueError("Query cannot be empty.")
 
@@ -177,4 +153,4 @@ def search_vector_db(vector_store: Chroma, query: str) -> list[Document]:
         )
         return retriever.invoke(query)
     except Exception as exc:
-        raise RuntimeError("Vector store retrieval failed.") from exc
+        raise RuntimeError(f"Vector store retrieval failed:{exc}") from exc
