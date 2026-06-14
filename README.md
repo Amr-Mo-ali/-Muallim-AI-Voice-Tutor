@@ -30,9 +30,7 @@ Built for **Egyptian Arabic dialect** support, with a full RAG pipeline, real-ti
 
 > **Try it live:** [enthusiastic-simplicity-production.up.railway.app/ui](https://enthusiastic-simplicity-production.up.railway.app/ui)
 
-<!-- Add a screenshot here after deployment:
-![Muallim UI Screenshot](docs/screenshot.png)
--->
+![مُعلِّم UI](docs/screenshot.png)
 
 ---
 
