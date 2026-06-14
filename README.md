@@ -4,12 +4,13 @@
 
 ![Python](https://img.shields.io/badge/Python-3.13-blue?style=flat-square&logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.136-green?style=flat-square&logo=fastapi)
-![LangChain](https://img.shields.io/badge/LangChain-1.3-orange?style=flat-square)
+![LangChain](https://img.shields.io/badge/LangChain-1.3-orange?style=flat-square&logo=langchain)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker)
 ![License](https://img.shields.io/badge/License-MIT-purple?style=flat-square)
 
 **Production-grade Arabic AI voice tutor — speak your question, get a spoken answer.**
 
-[Demo](#) · [API Docs](http://localhost:8000/docs) · [Report Bug](https://github.com/Amr-Mo-ali/muallim/issues)
+[🚀 Live Demo](https://enthusiastic-simplicity-production.up.railway.app/ui) · [📖 API Docs](https://enthusiastic-simplicity-production.up.railway.app/docs) · [🐛 Report Bug](https://github.com/Amr-Mo-ali/muallim/issues)
 
 </div>
 
@@ -17,11 +18,21 @@
 
 ## Overview
 
-**Muallim** (مُعلِّم) is an Arabic-first AI voice tutor that transforms any PDF document into an interactive voice-based learning experience.
+**Muallim** (مُعلِّم — Arabic for "teacher") is an Arabic-first AI voice tutor that transforms any PDF document into an interactive voice-based learning experience.
 
 Upload a study material → Ask a question in Arabic → Get a spoken answer grounded in the document.
 
-Built for Egyptian Arabic dialect support, with a full RAG pipeline and real-time TTS.
+Built for **Egyptian Arabic dialect** support, with a full RAG pipeline, real-time TTS, and session memory.
+
+---
+
+## Demo
+
+> **Try it live:** [enthusiastic-simplicity-production.up.railway.app/ui](https://enthusiastic-simplicity-production.up.railway.app/ui)
+
+<!-- Add a screenshot here after deployment:
+![Muallim UI Screenshot](docs/screenshot.png)
+-->
 
 ---
 
@@ -30,13 +41,13 @@ Built for Egyptian Arabic dialect support, with a full RAG pipeline and real-tim
 ```
 Voice Input
     ↓
-Whisper large-v3 (Groq)     — Arabic speech-to-text
+Whisper large-v3 (Groq)      — Arabic speech-to-text
     ↓
-ChromaDB + MMR Search        — semantic retrieval from PDF
+ChromaDB + MMR Search         — semantic retrieval from PDF
     ↓
-LLaMA 3.3 70B (Groq)        — context-aware answer generation
+LLaMA 3.3 70B (Groq)         — context-aware answer generation
     ↓
-ElevenLabs Multilingual v2   — text-to-speech
+ElevenLabs Multilingual v2    — text-to-speech
     ↓
 Voice + Text Output
 ```
@@ -54,15 +65,15 @@ Voice + Text Output
 | **Vector Store** | ChromaDB with MMR retrieval |
 | **Backend** | FastAPI + asyncio + ThreadPoolExecutor |
 | **Orchestration** | LangChain + LangSmith tracing |
-| **Deployment** | Docker + Docker Compose |
+| **Deployment** | Docker + Docker Compose + Railway |
 
 ---
 
 ## Key Features
 
-- **Arabic-first** — optimized for Egyptian Arabic dialect via Whisper
+- **Arabic-first** — optimized for Egyptian Arabic dialect via Whisper large-v3
 - **RAG pipeline** — answers grounded strictly in uploaded PDF content
-- **Idempotent indexing** — SHA-256 hash prevents re-embedding same PDF
+- **Idempotent indexing** — SHA-256 hash prevents re-embedding the same PDF
 - **Session memory** — conversation history maintained per session
 - **Session recovery** — vector store reloaded from disk on server restart
 - **Async architecture** — blocking AI calls run in ThreadPoolExecutor
@@ -178,5 +189,10 @@ MIT License — see [LICENSE](LICENSE)
 ---
 
 <div align="center">
-Built by <a href="https://github.com/Amr-Mo-ali">Amr Mohamed Ali</a> · ML/AI Engineer
+
+Built by **[Amr Mohamed Ali](https://github.com/Amr-Mo-ali)** · ML/AI Engineer · Arabic NLP Specialist
+
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-amr--mohamed21-0077B5?style=flat-square&logo=linkedin)](https://linkedin.com/in/amr-mohamed21)
+[![HuggingFace](https://img.shields.io/badge/HuggingFace-AmrMohamed21-FFD21E?style=flat-square&logo=huggingface)](https://huggingface.co/AmrMohamed21)
+
 </div>
