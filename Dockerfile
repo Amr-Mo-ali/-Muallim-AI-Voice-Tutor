@@ -1,5 +1,5 @@
 # Create the base image
-FROM python:3.13.16-slim
+FROM python:3.13-slim
 # Make the working directory
 WORKDIR /app
 # Copy the requirements
