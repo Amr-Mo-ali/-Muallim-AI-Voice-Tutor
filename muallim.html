@@ -280,7 +280,7 @@
 </div>
 
 <script>
-const API = 'http://127.0.0.1:8000';
+const API = '';
 let sessionId = null;
 let audioBlob = null;
 let mediaRecorder = null;
@@ -316,6 +316,15 @@ async function uploadPDF(file) {
     if (d.session_id) {
       sessionId = d.session_id;
       setBadge('uploadBadge', 'badge-ok', '', `✓ جاهز — ${d.chunks} قسم`);
+
+      // ── welcome message (جديد) ──
+      if (d.welcome_audio) {
+        addMessage('ai', d.welcome_text || 'أهلاً بيك!');
+        const el = document.getElementById('latestAudio');
+        el.innerHTML = `<audio controls autoplay
+          src="data:audio/mp3;base64,${d.welcome_audio}"></audio>`;
+      }
+
       // unlock record card
       document.getElementById('recordCard').style.opacity = '1';
       document.getElementById('recordCard').style.pointerEvents = 'auto';
