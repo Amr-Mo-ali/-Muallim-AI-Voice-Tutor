@@ -44,8 +44,8 @@ def _get_embeddings() -> HuggingFaceEmbeddings:
     logger.info("Loading embedding model: %s", _EMBEDDING_MODEL)
     return HuggingFaceEmbeddings(
         model_name=_EMBEDDING_MODEL,
-        model_kwargs={"device": "cpu"},
-        encode_kwargs={"batch_size": 32},
+        # model_kwargs={"device": "cpu"},
+        # encode_kwargs={"batch_size": 32},
     )
 @lru_cache(maxsize=1)
 def _get_qdrant_client() -> QdrantClient:
