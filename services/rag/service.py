@@ -21,7 +21,7 @@ from langchain_qdrant import QdrantVectorStore
 from langsmith import traceable
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.documents import Document
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient
 
