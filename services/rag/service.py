@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 _QDRANT_URL = os.getenv("QDRANT_URL")
 _QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+_HF_API_KEY = os.getenv("HF_TOKEN")
 # ── constants ─────────────────────────────────────────────────────────────────
 _CHUNK_SIZE         = 512
 _CHUNK_OVERLAP      = 100
@@ -44,6 +45,7 @@ def _get_embeddings() -> HuggingFaceEmbeddings:
     logger.info("Loading embedding model: %s", _EMBEDDING_MODEL)
     return HuggingFaceEmbeddings(
         model_name=_EMBEDDING_MODEL,
+        huggingfacehub_api_token=_HF_API_KEY,
         # model_kwargs={"device": "cpu"},
         # encode_kwargs={"batch_size": 32},
     )
