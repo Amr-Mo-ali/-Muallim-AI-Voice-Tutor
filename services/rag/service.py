@@ -127,7 +127,7 @@ def get_or_create_vector_store(
             )
             return vector_store
     except Exception as e:
-        raise RuntimeError("Failed to Find or create Vector Database") from e
+         raise RuntimeError(f"Failed to Find or create Vector Database: {e}") from e
 
 def load_vector_db(collection_name: str) -> QdrantVectorStore:
     """Load existing QdrantVectorStore for session recovery."""
