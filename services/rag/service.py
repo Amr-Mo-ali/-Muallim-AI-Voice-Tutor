@@ -41,9 +41,9 @@ _EMBEDDING_MODEL    = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-
 
 # ── singletons ────────────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
-def _get_embeddings() -> HuggingFaceEmbeddings:
+def _get_embeddings() -> HuggingFaceInferenceAPIEmbeddings:
     logger.info("Loading embedding model: %s", _EMBEDDING_MODEL)
-    return HuggingFaceEmbeddings(
+    return HuggingFaceInferenceAPIEmbeddings(
         model_name=_EMBEDDING_MODEL,
         huggingfacehub_api_token=_HF_API_KEY,
         # model_kwargs={"device": "cpu"},
