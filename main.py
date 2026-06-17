@@ -10,7 +10,6 @@ from __future__ import annotations
 from functools import lru_cache
 import json
 import os
-from urllib import response
 
 from fastapi import FastAPI ,File ,UploadFile, HTTPException, Form
 from fastapi.responses import FileResponse
@@ -18,8 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import redis
 from services.rag.service import load_and_chunk, load_vector_db ,get_or_create_vector_store ,count_chunks
 from orchestrator.chain import ask as process_ask 
-from langchain_core.messages import HumanMessage, AIMessage
-import langfuse
+from langchain_core.messages import HumanMessage, AIMessage 
 
 import base64
 import uuid
@@ -113,43 +111,35 @@ async def upload_pdf(file: UploadFile = File(...), ):
 async def ask(
     session_id: str = Form(...),
     audio_file: UploadFile = File(...),
-    ):
+):
     r = _get_redis()
 
     # 1. جيب الـ session من Redis
     session_data = r.hgetall(f"session:{session_id}")
     if not session_data:
         raise HTTPException(404, "Session not found — please re-upload the PDF.")
-    
-    trace = langfuse.trace(name="ask", session_id=session_id)
+
     # 2. الـ audio
-    with trace.span(name="stt"):
-        audio_bytes = await audio_file.read()
+    audio_bytes = await audio_file.read()
     if not audio_bytes:
         raise HTTPException(400, "Audio file is empty.")
 
     # 3. الـ vector_db من cache أو Qdrant
-    with trace.span(name="retrieval"):
-        vector_db = _sessions.get(session_id, {}).get("vector_db")
+    vector_db = _sessions.get(session_id, {}).get("vector_db")
     if not vector_db:
         vector_db = await _run_blocking(load_vector_db, session_data["collection_name"])
         _sessions[session_id] = {"vector_db": vector_db}
 
     # 4. الـ history من Redis
-    with trace.span(name="redis_history"):
-        history = _deserialize_history(session_data["history"])
-    
+    history = _deserialize_history(session_data["history"])
     # 5. process
-    with trace.span(name="ask"):
-        answer, response_audio, updated_history, query = await _run_blocking(
+    answer, response_audio, updated_history, query = await _run_blocking(
         process_ask, audio_bytes, history, vector_db,
     )
-
 
     # 6. حفظ الـ history
     trimmed = updated_history[-_MAX_HISTORY:]
     r.hset(f"session:{session_id}", "history", _serialize_history(trimmed))
 
     audio_b64 = base64.b64encode(response_audio).decode("utf-8")
-    trace.update(output=response)
     return {"answer": answer, "audio": audio_b64, "audio_format": "mp3", "query": query}

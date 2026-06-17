@@ -44,10 +44,8 @@ _EMBEDDING_MODEL    = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-
 def _get_embeddings() -> HuggingFaceInferenceAPIEmbeddings:
     logger.info("Loading embedding model: %s", _EMBEDDING_MODEL)
     return HuggingFaceInferenceAPIEmbeddings(
-        model_name=_EMBEDDING_MODEL,
-        huggingfacehub_api_token=_HF_API_KEY,
-        # model_kwargs={"device": "cpu"},
-        # encode_kwargs={"batch_size": 32},
+    model_name=_EMBEDDING_MODEL,
+    api_key=os.getenv("HF_TOKEN"),
     )
 @lru_cache(maxsize=1)
 def _get_qdrant_client() -> QdrantClient:
