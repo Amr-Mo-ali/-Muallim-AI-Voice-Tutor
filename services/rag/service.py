@@ -107,7 +107,8 @@ def get_or_create_vector_store(
     Idempotent vector store creator 
     """
     client = _get_qdrant_client()
-    exists = client.collection_exists(collection_name)  
+    exists = client.collection_exists(collection_name)
+    logger.info("QDRANT CHECK OK — collection_exists returned: %s", exists)  
     try:
         if exists:
             return QdrantVectorStore(
