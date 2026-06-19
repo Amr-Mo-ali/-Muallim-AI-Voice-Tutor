@@ -21,7 +21,7 @@ from langchain_qdrant import QdrantVectorStore
 from langsmith import traceable
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.documents import Document
-from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
+from langchain_huggingface import HuggingFaceEndpointEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from qdrant_client import QdrantClient
 
@@ -41,11 +41,12 @@ _EMBEDDING_MODEL    = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-
 
 # ── singletons ────────────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
-def _get_embeddings() -> HuggingFaceInferenceAPIEmbeddings:
+def _get_embeddings() -> HuggingFaceEndpointEmbeddings:
     logger.info("Loading embedding model: %s", _EMBEDDING_MODEL)
-    return HuggingFaceInferenceAPIEmbeddings(
-    model_name=_EMBEDDING_MODEL,
-    api_key=_HF_API_KEY,
+    return HuggingFaceEndpointEmbeddings(
+        model=_EMBEDDING_MODEL,
+        task="feature-extraction",
+        huggingfacehub_api_token=_HF_API_KEY,
     )
 @lru_cache(maxsize=1)
 def _get_qdrant_client() -> QdrantClient:
@@ -107,8 +108,7 @@ def get_or_create_vector_store(
     Idempotent vector store creator 
     """
     client = _get_qdrant_client()
-    exists = client.collection_exists(collection_name)
-    logger.info("QDRANT CHECK OK — collection_exists returned: %s", exists)  
+    exists = client.collection_exists(collection_name) 
     try:
         if exists:
             return QdrantVectorStore(
