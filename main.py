@@ -27,16 +27,17 @@ import logging
 
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor
+from opentelemetry.instrumentation.threading import ThreadingInstrumentor
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 # ── env ───────────────────────────────────────────────────────────────────────
 load_dotenv()
 # ── app setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title="STUDYFLOW AI", version="1.0.0")
-
+ThreadingInstrumentor().instrument()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://192.168.1.7:8000"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
