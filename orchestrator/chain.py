@@ -40,7 +40,7 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
         2. Retrieves relevant chunks from the vector store.
         3. Generates a response using the LLM.
     """
-    with langfuse.start_as_current_observation(as_type="Trace ", name="ask-request") as Trace :
+    with langfuse.start_as_current_observation(as_type="Trace", name="ask-request") as Trace :
         logger.info("Processing ask for user session")
         # Create a span using a context manager
         with langfuse.start_as_current_observation(as_type="span", name="stt-request") as span:
