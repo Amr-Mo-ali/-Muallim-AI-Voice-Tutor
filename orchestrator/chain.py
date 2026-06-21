@@ -59,14 +59,20 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
             # Step 3: build context string
             context = "\n\n".join(chunk.page_content for chunk in relevant_chunks)
             span.update(output=context)
+        chat_prompt = langfuse.get_prompt(
+            "muallim-system-prompt",
+            type="chat"
+        )
+
+        compiled_prompt = chat_prompt.compile(
+            context=context,
+            language=language
+        )
+
         messages = [
-        SystemMessage(content=(
-            f"You are Muallim, a friendly Egyptian Arabic tutor.\n"
-            f"Use ONLY this context to answer:\n{context}\n"
-            f"Answer in {language}."
-        )),
-        *history,
-        HumanMessage(content=query),
+            *compiled_prompt,
+            *history,
+            HumanMessage(content=query),
         ]
          # Create a nested generation for an LLM call
         with langfuse.start_as_current_observation(
