@@ -71,13 +71,13 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
          # Create a nested generation for an LLM call
         with langfuse.start_as_current_observation(
             as_type="generation", 
-            name="llm-response", 
+            name="llm-response",
+            input=context,
             model=_MODEL_NAME) as generation:
             # Step 4: Generate response using LLM
             llm = _get_llm()
             response = llm.invoke(messages)
             generation.update(
-                input=context,
                 output={"response": response.content},
                 usage_details={
                     "input": response.usage_metadata["input_tokens"],
