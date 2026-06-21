@@ -77,13 +77,13 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
             llm = _get_llm()
             response = llm.invoke(messages)
             generation.update(
-                input= context,
+                input=context,
                 output={"response": response.content},
-                usage={
-        "input": response.usage_metadata["input_tokens"],
-        "output": response.usage_metadata["output_tokens"]
-                    }
-                )
+                usage_details={
+                    "input": response.usage_metadata["input_tokens"],
+                    "output": response.usage_metadata["output_tokens"]
+                }
+            )
         with langfuse.start_as_current_observation(as_type="span", name="tts-request") as span:
             audio_file = tts_service.synthesize(response.content)
             span.update(output={
