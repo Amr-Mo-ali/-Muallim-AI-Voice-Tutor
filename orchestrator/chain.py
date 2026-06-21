@@ -69,11 +69,21 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
         HumanMessage(content=query),
         ]
          # Create a nested generation for an LLM call
-        with langfuse.start_as_current_observation(as_type="generation", name="llm-response", model=_MODEL_NAME) as generation:
+        with langfuse.start_as_current_observation(
+            as_type="generation", 
+            name="llm-response", 
+            model=_MODEL_NAME) as generation:
             # Step 4: Generate response using LLM
             llm = _get_llm()
             response = llm.invoke(messages)
-            generation.update(output={"response": response.content})
+            generation.update(
+                input= context,
+                output={"response": response.content},
+                usage={
+        "input": response.usage_metadata["input_tokens"],
+        "output": response.usage_metadata["output_tokens"]
+                    }
+                )
         with langfuse.start_as_current_observation(as_type="span", name="tts-request") as span:
             audio_file = tts_service.synthesize(response.content)
             span.update(output={
