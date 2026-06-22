@@ -13,7 +13,7 @@ from services.stt import service as stt_service
 from services.tts import service as tts_service
 
 
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_groq import ChatGroq
 from langfuse import get_client
 
@@ -53,10 +53,10 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
             logger.info("Transcribed query: %s (Language: %s)", query, language)
             span.update(output={"query":query ,"language": language})
             # stor the rewrite_query in a new variable 
-            rewrite = rewrite_query(query)
         # Create a span using a context manager
         with langfuse.start_as_current_observation(as_type="span", name="relevant_chunks") as span:
             # Step 2: Retrieve relevant chunks from vector store
+            rewrite = rewrite_query(query)
             relevant_chunks = rag_service.search_vector_db(vector_store, rewrite)
             logger.info("Retrieved %d relevant chunks from vector store", len(relevant_chunks))
             # Step 3: build context string
@@ -94,13 +94,18 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
                 }
             )
         with langfuse.start_as_current_observation(as_type="span", name="tts-request") as span:
-            audio_file = tts_service.synthesize(response.content)
-            span.update(output={
-                "audio_length": len(audio_file),
-                "characters_sent": len(response.content)
+            try:
+                audio_file = tts_service.synthesize(response.content)
+                span.update(output={
+                    "audio_length": len(audio_file),
+                    "characters_sent": len(response.content)
                 })
+            except Exception as e:
+                logger.warning("TTS failed, returning text only: %s", e)
+                span.update(output={"error": str(e), "fallback": "text-only"})
+                audio_file = b"" 
         
-        updated_history = [*history, HumanMessage(content=rewrite), AIMessage(content=response.content)]
+            updated_history = [*history, HumanMessage(content=rewrite), AIMessage(content=response.content)]
         langfuse.flush()
         return response.content, audio_file, updated_history, rewrite
 
