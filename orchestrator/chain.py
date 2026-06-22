@@ -31,6 +31,7 @@ if not _GROQ_API_KEY:
     raise ValueError("GROQ_API_KEY not found in environment variables")
 # ── constants ─────────────────────────────────────────────────────────────────
 _MODEL_NAME = "llama-3.3-70b-versatile"  # choose the appropriate model for your use case
+_MODEL_NAME_FOR_QUERY_REWRITER = "llama-3.1-8b-instant"
 langfuse = get_client()
 # ── public API ────────────────────────────────────────────────────────────────
 def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
@@ -51,10 +52,12 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
             language = _normalize_language(language)
             logger.info("Transcribed query: %s (Language: %s)", query, language)
             span.update(output={"query":query ,"language": language})
+            # stor the rewrite_query in a new variable 
+            rewrite = rewrite_query(query)
         # Create a span using a context manager
         with langfuse.start_as_current_observation(as_type="span", name="relevant_chunks") as span:
             # Step 2: Retrieve relevant chunks from vector store
-            relevant_chunks = rag_service.search_vector_db(vector_store, query)
+            relevant_chunks = rag_service.search_vector_db(vector_store, rewrite)
             logger.info("Retrieved %d relevant chunks from vector store", len(relevant_chunks))
             # Step 3: build context string
             context = "\n\n".join(chunk.page_content for chunk in relevant_chunks)
@@ -72,7 +75,7 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
         messages = [
             *compiled_prompt,
             *history,
-            HumanMessage(content=query),
+            HumanMessage(content=rewrite),
         ]
          # Create a nested generation for an LLM call
         with langfuse.start_as_current_observation(
@@ -97,9 +100,9 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
                 "characters_sent": len(response.content)
                 })
         
-        updated_history = [*history, HumanMessage(content=query), AIMessage(content=response.content)]
+        updated_history = [*history, HumanMessage(content=rewrite), AIMessage(content=response.content)]
         langfuse.flush()
-        return response.content, audio_file, updated_history, query
+        return response.content, audio_file, updated_history, rewrite
 
 # ── private API ────────────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
@@ -114,6 +117,29 @@ def _get_llm() -> ChatGroq:
         model=_MODEL_NAME,
         api_key=os.getenv("GROQ_API_KEY"),
     )
+
+@lru_cache(maxsize=1)
+def _get_llm_for_query_rewriter() -> ChatGroq:
+    """
+    Get a ChatGroq instance for generating responses.
+
+    Returns:
+        A ChatGroq instance initialized with the appropriate model and API key.
+    """
+    return ChatGroq(
+        model=_MODEL_NAME_FOR_QUERY_REWRITER,
+        api_key=os.getenv("GROQ_API_KEY"),
+    )
+
+def rewrite_query(query) -> str:
+    prompt = langfuse.get_prompt(
+            "muallim-rewrite_query-prompt",
+            type="chat"
+        )
+    
+    llm = _get_llm_for_query_rewriter()
+    rewritten = llm.invoke(prompt.compile(query=query))
+    return rewritten.content
 
 def _normalize_language(lang_code: str) -> str:
     """
