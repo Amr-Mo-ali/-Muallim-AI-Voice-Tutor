@@ -35,7 +35,7 @@ _HF_API_KEY = os.getenv("HF_TOKEN")
 # ── constants ─────────────────────────────────────────────────────────────────
 _CHUNK_SIZE         = 512
 _CHUNK_OVERLAP      = 100
-_RETRIEVER_K        = 3
+_RETRIEVER_K        = 5
 _RETRIEVER_FETCH_K  = 10
 _EMBEDDING_MODEL    = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
