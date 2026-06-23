@@ -34,7 +34,11 @@ _MODEL_NAME = "llama-3.3-70b-versatile"  # choose the appropriate model for your
 _MODEL_NAME_FOR_QUERY_REWRITER = "llama-3.1-8b-instant"
 langfuse = get_client()
 # ── public API ────────────────────────────────────────────────────────────────
-def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
+def ask(
+    audio_bytes: bytes,
+    history: list,
+    vector_store
+) -> tuple[str, bytes, list, str]:
     """
         Orchestrates the RAG pipeline:
         1. Transcribes audio to text.
