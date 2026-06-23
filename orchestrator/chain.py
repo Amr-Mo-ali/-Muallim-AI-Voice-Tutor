@@ -61,7 +61,12 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
             logger.info("Retrieved %d relevant chunks from vector store", len(relevant_chunks))
             # Step 3: build context string
             context = "\n\n".join(chunk.page_content for chunk in relevant_chunks)
-            span.update(output=context)
+            span.update(
+            output={
+                "chunks_count": len(relevant_chunks),
+                "context_length": len(context)
+            }
+        )
         chat_prompt = langfuse.get_prompt(
             "muallim-system-prompt",
             type="chat"
@@ -83,16 +88,21 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
             name="llm-response",
             input=context,
             model=_MODEL_NAME) as generation:
-            # Step 4: Generate response using LLM
-            llm = _get_llm()
-            response = llm.invoke(messages)
-            generation.update(
-                output={"response": response.content},
-                usage_details={
-                    "input": response.usage_metadata["input_tokens"],
-                    "output": response.usage_metadata["output_tokens"]
-                }
-            )
+                try:
+                    # Step 4: Generate response using LLM
+                    llm = _get_llm()
+                    response = llm.invoke(messages)
+                    generation.update(
+                    output={"response": response.content},
+                    usage_details={
+                        "input": response.usage_metadata["input_tokens"],
+                        "output": response.usage_metadata["output_tokens"]
+                    }
+                )
+                except Exception as e:
+                    logger.exception("LLM request failed")
+                    raise
+                    
         with langfuse.start_as_current_observation(as_type="span", name="tts-request") as span:
             try:
                 audio_file = tts_service.synthesize(response.content)
@@ -104,8 +114,12 @@ def ask(audio_bytes, history, vector_store) -> tuple[str, bytes, list, str]:
                 logger.warning("TTS failed, returning text only: %s", e)
                 span.update(output={"error": str(e), "fallback": "text-only"})
                 audio_file = b"" 
-        
-            updated_history = [*history, HumanMessage(content=rewrite), AIMessage(content=response.content)]
+
+        updated_history = [
+        *history,
+        HumanMessage(content=query),
+        AIMessage(content=response.content)
+        ]
         langfuse.flush()
         return response.content, audio_file, updated_history, rewrite
 
@@ -120,7 +134,7 @@ def _get_llm() -> ChatGroq:
     """
     return ChatGroq(
         model=_MODEL_NAME,
-        api_key=os.getenv("GROQ_API_KEY"),
+        api_key=_GROQ_API_KEY,
     )
 
 @lru_cache(maxsize=1)
@@ -133,7 +147,7 @@ def _get_llm_for_query_rewriter() -> ChatGroq:
     """
     return ChatGroq(
         model=_MODEL_NAME_FOR_QUERY_REWRITER,
-        api_key=os.getenv("GROQ_API_KEY"),
+        api_key=_GROQ_API_KEY,
     )
 
 def rewrite_query(query) -> str:
