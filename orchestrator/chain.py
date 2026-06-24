@@ -106,7 +106,7 @@ def ask(
                 except Exception as e:
                     logger.warning("LLM failed: %s", e)
                     generation.update(output={"error": str(e)})
-                    raise RuntimeError("LLM failed") from e  # ← لازم ترفع الـ error
+                    raise RuntimeError("LLM failed") from e 
                     
         with langfuse.start_as_current_observation(as_type="span", name="tts-request") as span:
             try:

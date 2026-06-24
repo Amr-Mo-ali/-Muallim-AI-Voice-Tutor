@@ -47,7 +47,7 @@ _MAX_HISTORY = 10
 # ThreadPoolExecutor: blocking ops (embedding, LLM)
 executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers=4)
 # In-memory session store: {session_id: {"vector_db": Chroma, "persist_dir": str}}
-# NOTE: بيتمسح على server restart لكن بنعمل recovery من الديسك تلقائياً
+# NOTE: It is erased on server restart, but we perform recovery from the disk automatically.
 _sessions: dict[str, dict] = {}
 # ── helpers ───────────────────────────────────────────────────────────────────
 def _serialize_history(history: list) -> str:
@@ -95,8 +95,8 @@ async def upload_pdf(file: UploadFile = File(...), ):
     "collection_name": collection_name,
     "history": "[]"
     })
-    r.expire(f"session:{session_id}", 60 * 60 * 24)  # 24 ساعة
-    # indexing أو load من cache — كله في executor لأنه blocking
+    r.expire(f"session:{session_id}", 60 * 60 * 24)  # 24 H
+    # Indexing or loading from the cache — all in the executor because it's blocking
     vector_db = await _run_blocking(get_or_create_vector_store, chunks, collection_name)
 
     _sessions[session_id] = {
@@ -115,30 +115,30 @@ async def ask(
 ):
     r = _get_redis()
 
-    # 1. جيب الـ session من Redis
+    # 1. Get the session from Redis
     session_data = r.hgetall(f"session:{session_id}")
     if not session_data:
         raise HTTPException(404, "Session not found — please re-upload the PDF.")
 
-    # 2. الـ audio
+    # 2.The audio
     audio_bytes = await audio_file.read()
     if not audio_bytes:
         raise HTTPException(400, "Audio file is empty.")
 
-    # 3. الـ vector_db من cache أو Qdrant
+    # 3. vector_db from cache or Qdrant
     vector_db = _sessions.get(session_id, {}).get("vector_db")
     if not vector_db:
         vector_db = await _run_blocking(load_vector_db, session_data["collection_name"])
         _sessions[session_id] = {"vector_db": vector_db}
 
-    # 4. الـ history من Redis
+    # 4. vector_db from cache or Qdrant
     history = _deserialize_history(session_data["history"])
     # 5. process
     answer, response_audio, updated_history, query = await _run_blocking(
         process_ask, audio_bytes, history, vector_db,
     )
 
-    # 6. حفظ الـ history
+    # 6. Save the history
     trimmed = updated_history[-_MAX_HISTORY:]
     r.hset(f"session:{session_id}", "history", _serialize_history(trimmed))
 
