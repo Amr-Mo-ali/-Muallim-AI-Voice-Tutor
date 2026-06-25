@@ -51,9 +51,9 @@ def synthesize(text: str) -> bytes:
     if not text.strip():
         raise ValueError("Text file cannot be empty")
     
-    clint = _get_client()
+    client = _get_client()
     try:
-        audio_generator = clint.text_to_speech.convert(
+        audio_generator = client.text_to_speech.convert(
             voice_id=_ELEVENLABS_VOICE_ID,
             text=text,
             model_id=_MODEL_NAME
