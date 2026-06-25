@@ -47,7 +47,7 @@ def synthesize(text: str) -> bytes:
         RuntimeError: If ElevenLabs API fails.
     """
     logger.info("Synthesizing %d characters", len(text))
-    # Validate input
+    # Validate input , text.strip to ensure that not a empty text 
     if not text.strip():
         raise ValueError("Text file cannot be empty")
     
