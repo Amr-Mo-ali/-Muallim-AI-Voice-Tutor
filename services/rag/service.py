@@ -33,8 +33,8 @@ _HF_API_KEY = settings.hf_token
 # ── constants ─────────────────────────────────────────────────────────────────
 _CHUNK_SIZE         = 512
 _CHUNK_OVERLAP      = 100
-_RETRIEVER_K        = 5
-_RETRIEVER_FETCH_K  = 10
+_RETRIEVER_K        = 8
+_RETRIEVER_FETCH_K  = 20
 _EMBEDDING_MODEL    = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 # ── singletons ────────────────────────────────────────────────────────────────
@@ -141,16 +141,39 @@ def load_vector_db(collection_name: str) -> QdrantVectorStore:
 
 
 @traceable
-def search_vector_db(vector_store: QdrantVectorStore, query: str) -> list[Document]:
-    """Retrieve relevant documents using MMR search."""
+def search_vector_db(
+    vector_store: QdrantVectorStore,
+    query: str,
+) -> list[Document]:
+    """
+    Retrieve relevant documents using Maximum Marginal Relevance (MMR).
+
+    MMR improves diversity in retrieved chunks and reduces redundancy
+    before passing context to the LLM.
+    """
     if not query.strip():
         raise ValueError("Query cannot be empty.")
 
     try:
         retriever = vector_store.as_retriever(
             search_type="mmr",
-            search_kwargs={"k": _RETRIEVER_K, "fetch_k": _RETRIEVER_FETCH_K},
+            search_kwargs={
+                "k": _RETRIEVER_K,
+                "fetch_k": _RETRIEVER_FETCH_K,
+            },
         )
-        return retriever.invoke(query)
+
+        docs = retriever.invoke(query)
+
+        logger.info(
+            "Retrieved %d documents using MMR",
+            len(docs),
+        )
+
+        return docs
+
     except Exception as exc:
-        raise RuntimeError(f"Vector store retrieval failed:{exc}") from exc
+        logger.exception("Vector retrieval failed")
+        raise RuntimeError(
+            f"Vector store retrieval failed: {exc}"
+        ) from exc
