@@ -25,7 +25,7 @@ from config import settings
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 # ── env ───────────────────────────────────────────────────────────────────────
-_GROQ_API_KEY = settings.groq_api_key
+_GROQ_API_KEY = settings.groq_api_key.get_secret_value()
 # ── constants ─────────────────────────────────────────────────────────────────
 _MODEL_NAME = "llama-3.3-70b-versatile"  # choose the appropriate model for your use case
 _MODEL_NAME_FOR_QUERY_REWRITER = "llama-3.1-8b-instant"

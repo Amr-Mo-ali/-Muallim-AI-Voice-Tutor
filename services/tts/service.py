@@ -10,7 +10,7 @@ from functools import lru_cache
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 # ── env ──────────────────────────────────────────────────────────────────────
-_ELEVENLABS_API_KEY = settings.elevenlabs_api_key
+_ELEVENLABS_API_KEY = settings.elevenlabs_api_key.get_secret_value()
 _ELEVENLABS_VOICE_ID = settings.elevenlabs_voice_id
 # ── constants ─────────────────────────────────────────────────────────────────
 

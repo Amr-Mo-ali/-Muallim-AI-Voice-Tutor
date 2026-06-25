@@ -9,7 +9,6 @@ Session recovery: если server restarts, sessions are reloaded from disk on d
 from __future__ import annotations
 from functools import lru_cache
 import json
-import os
 
 from fastapi import FastAPI ,File ,UploadFile, HTTPException, Form
 from fastapi.responses import FileResponse
@@ -23,15 +22,14 @@ import base64
 import uuid
 import asyncio
 import logging
+from config import settings
 
 
-from dotenv import load_dotenv
+
 from concurrent.futures import ThreadPoolExecutor
 from opentelemetry.instrumentation.threading import ThreadingInstrumentor
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
-# ── env ───────────────────────────────────────────────────────────────────────
-load_dotenv()
 # ── app setup ─────────────────────────────────────────────────────────────────
 app = FastAPI(title="STUDYFLOW AI", version="1.0.0")
 ThreadingInstrumentor().instrument()
@@ -71,7 +69,7 @@ async def _run_blocking(fn, *args):
 
 @lru_cache(maxsize=1)
 def _get_redis() -> redis.Redis:
-    return redis.Redis.from_url(os.getenv("REDIS_URL"), decode_responses=True)
+    return redis.Redis.from_url(settings.redis_url, decode_responses=True)
 
 # ── routes ────────────────────────────────────────────────────────────────────
 @app.get("/")

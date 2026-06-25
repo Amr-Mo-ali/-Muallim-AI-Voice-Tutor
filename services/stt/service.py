@@ -14,7 +14,7 @@ from functools import lru_cache
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 # ── env ──────────────────────────────────────────────────────────────────────
-_GROQ_API_KEY = settings.groq_api_key
+_GROQ_API_KEY = settings.groq_api_key.get_secret_value()
 # ── constants ─────────────────────────────────────────────────────────────────
 _MODEL_NAME = "whisper-large-v3"  # choose the appropriate model for your use case
 # ── private API ────────────────────────────────────────────────────────────────

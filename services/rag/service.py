@@ -28,8 +28,8 @@ from qdrant_client import QdrantClient
 logger = logging.getLogger(__name__)
 # ── env ───────────────────────────────────────────────────────────────────────
 _QDRANT_URL = settings.qdrant_url
-_QDRANT_API_KEY = settings.qdrant_api_key
-_HF_API_KEY = settings.hf_token
+_QDRANT_API_KEY = settings.qdrant_api_key.get_secret_value()
+_HF_API_KEY = settings.hf_token.get_secret_value()
 # ── constants ─────────────────────────────────────────────────────────────────
 _CHUNK_SIZE         = 512
 _CHUNK_OVERLAP      = 100
