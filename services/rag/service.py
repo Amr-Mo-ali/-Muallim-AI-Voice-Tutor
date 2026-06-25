@@ -49,6 +49,27 @@ def _get_embeddings() -> HuggingFaceEndpointEmbeddings:
 @lru_cache(maxsize=1)
 def _get_qdrant_client() -> QdrantClient:
     return QdrantClient(url=_QDRANT_URL ,api_key=_QDRANT_API_KEY)
+
+@lru_cache(maxsize=1)
+def _normalize_chunk_metadata(
+    chunks: list[Document],
+) -> list[Document]:
+
+    for chunk in chunks:
+
+        chunk.metadata = chunk.metadata or {}
+
+        chunk.metadata.setdefault(
+            "source",
+            "uploaded_pdf"
+        )
+
+        chunk.metadata.setdefault(
+            "page",
+            0
+        )
+
+    return chunks
 # ── public API ────────────────────────────────────────────────────────────────
 @traceable
 def load_and_chunk(bytes_data: bytes) -> list[Document]:
@@ -90,6 +111,7 @@ def load_and_chunk(bytes_data: bytes) -> list[Document]:
         separators=["\n\n", "\n", ".", " "],
     )
     chunks = splitter.split_documents(documents)
+    chunks = _normalize_chunk_metadata(chunks)
     logger.info("PDF split into %d chunks", len(chunks))
     return chunks
 
