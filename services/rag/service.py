@@ -98,6 +98,7 @@ def count_chunks(collection_name: str) -> int:
     return client.count(collection_name).count
 
 @traceable
+# Idempotent Creation
 def get_or_create_vector_store(
         chunks: list[Document],
         collection_name: str
