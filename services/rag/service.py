@@ -49,8 +49,7 @@ def _get_embeddings() -> HuggingFaceEndpointEmbeddings:
 @lru_cache(maxsize=1)
 def _get_qdrant_client() -> QdrantClient:
     return QdrantClient(url=_QDRANT_URL ,api_key=_QDRANT_API_KEY)
-
-@lru_cache(maxsize=1)
+# ── public API ────────────────────────────────────────────────────────────────
 def _normalize_chunk_metadata(
     chunks: list[Document],
 ) -> list[Document]:
@@ -70,7 +69,6 @@ def _normalize_chunk_metadata(
         )
 
     return chunks
-# ── public API ────────────────────────────────────────────────────────────────
 @traceable
 def load_and_chunk(bytes_data: bytes) -> list[Document]:
     """
