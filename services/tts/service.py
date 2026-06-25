@@ -48,7 +48,7 @@ def synthesize(text: str) -> bytes:
     """
     logger.info("Synthesizing %d characters", len(text))
     # Validate input
-    if not text:
+    if not text.strip():
         raise ValueError("Text file cannot be empty")
     
     clint = _get_client()

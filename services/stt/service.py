@@ -64,6 +64,7 @@ def transcribe(audio_bytes: bytes) -> tuple[str, str]:
             response_format="verbose_json"  # We want the language information, so we use verbose_json format
         )
     except Exception as e:
+        logger.exception()
         raise RuntimeError("Failed to transcribe audio.") from e
 
     text = result.text
