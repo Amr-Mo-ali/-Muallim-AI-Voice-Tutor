@@ -15,8 +15,7 @@ import tempfile
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import load_dotenv
-
+from config import settings
 from langchain_qdrant import QdrantVectorStore
 from langsmith import traceable
 from langchain_community.document_loaders import PyMuPDFLoader
@@ -28,10 +27,9 @@ from qdrant_client import QdrantClient
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 # ── env ───────────────────────────────────────────────────────────────────────
-load_dotenv()
-_QDRANT_URL = os.getenv("QDRANT_URL")
-_QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
-_HF_API_KEY = os.getenv("HF_TOKEN")
+_QDRANT_URL = settings.qdrant_url
+_QDRANT_API_KEY = settings.qdrant_api_key
+_HF_API_KEY = settings.hf_token
 # ── constants ─────────────────────────────────────────────────────────────────
 _CHUNK_SIZE         = 512
 _CHUNK_OVERLAP      = 100

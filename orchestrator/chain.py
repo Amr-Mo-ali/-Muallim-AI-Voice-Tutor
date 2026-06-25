@@ -19,16 +19,13 @@ from langfuse import get_client
 
 from functools import lru_cache
 import logging
-import os
-from dotenv import load_dotenv
+from config import settings
+
 
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 # ── env ───────────────────────────────────────────────────────────────────────
-load_dotenv()
-_GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-if not _GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY not found in environment variables")
+_GROQ_API_KEY = settings.groq_api_key
 # ── constants ─────────────────────────────────────────────────────────────────
 _MODEL_NAME = "llama-3.3-70b-versatile"  # choose the appropriate model for your use case
 _MODEL_NAME_FOR_QUERY_REWRITER = "llama-3.1-8b-instant"

@@ -6,25 +6,17 @@ The `transcribe` function takes audio data as bytes, validates the input, and re
 It raises exceptions for invalid input or transcription failures.
 """
 from __future__ import annotations
-import os
 import logging
-from groq import Groq
-from dotenv import load_dotenv 
+from config import settings
+from groq import Groq 
 from functools import lru_cache
 
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 # ── env ──────────────────────────────────────────────────────────────────────
-load_dotenv()
-
-_GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-if not _GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY is not set in the environment variables.")
-
+_GROQ_API_KEY = settings.groq_api_key
 # ── constants ─────────────────────────────────────────────────────────────────
-
 _MODEL_NAME = "whisper-large-v3"  # choose the appropriate model for your use case
-
 # ── private API ────────────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
 def _get_client() -> Groq:

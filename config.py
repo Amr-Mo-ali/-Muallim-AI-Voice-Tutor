@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     langfuse_secret_key: SecretStr
     langfuse_host: str
 
+    # ELEVENLABS
+    elevenlabs_api_key: SecretStr
+    elevenlabs_voice_id: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

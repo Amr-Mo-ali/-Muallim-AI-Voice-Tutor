@@ -1,23 +1,17 @@
 
 
 from __future__ import annotations
-import os
+
 import logging
+from config import settings
 from elevenlabs import ElevenLabs
-from dotenv import load_dotenv 
 from functools import lru_cache
 
 # ── logging ───────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 # ── env ──────────────────────────────────────────────────────────────────────
-load_dotenv()
-
-_ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-if not _ELEVENLABS_API_KEY:
-    raise ValueError("ELEVENLABS_API_KEY is not set in the environment variables.")
-_ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID")
-if not _ELEVENLABS_VOICE_ID:
-    raise ValueError("ELEVENLABS_VOICE_ID is not set in the environment variables.")
+_ELEVENLABS_API_KEY = settings.elevenlabs_api_key
+_ELEVENLABS_VOICE_ID = settings.elevenlabs_voice_id
 # ── constants ─────────────────────────────────────────────────────────────────
 
 _MODEL_NAME = "eleven_multilingual_v2"  # choose the appropriate model for your use case
