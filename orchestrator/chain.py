@@ -96,6 +96,7 @@ def ask(
                     generation.update(
                     output={"response": response.content},
                     usage_details={
+                        # to calculate Cost Per User, Cost Per Session, Token Consumption
                         "input": response.usage_metadata["input_tokens"],
                         "output": response.usage_metadata["output_tokens"]
                     }
@@ -159,7 +160,12 @@ def rewrite_query(query) -> str:
         )
     
     llm = _get_llm_for_query_rewriter()
-    rewritten = llm.invoke(prompt.compile(query=query))
+
+    try :
+        rewritten = llm.invoke(prompt.compile(query=query))
+    except:
+        rewritten = query
+    
     return rewritten.content
 
 def _normalize_language(lang_code: str) -> str:
