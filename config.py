@@ -1,7 +1,7 @@
 """
 What contract does this module promise?
 If Settings() succeeds,
-every consumer can trust the configuration.
+every consumer can trust the configuration. 
 """
 
 from pydantic import SecretStr
