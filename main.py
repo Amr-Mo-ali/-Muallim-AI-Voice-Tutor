@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import redis
 from services.rag.service import load_and_chunk, load_vector_db ,get_or_create_vector_store ,count_chunks
-from orchestrator.chain import ask as process_ask 
+from use_cases.chain import ask as process_ask 
 from langchain_core.messages import HumanMessage, AIMessage 
 
 import base64
