@@ -56,37 +56,72 @@ def ask(
             span.update(output={"query":query ,"language": language})
             # stor the rewrite_query in a new variable 
         # Create a span using a context manager
+        # Step 2: Rewrite the query
+    with langfuse.start_as_current_observation(
+        as_type="generation",
+        name="query-rewrite",
+        model=_MODEL_NAME_FOR_QUERY_REWRITER,
+        ) as generation:
+
         rewrite = rewrite_query(query, history)
-        with langfuse.start_as_current_observation(
-            input=("rewrite", rewrite),
-            as_type="span", 
-            name="relevant_chunks") as span:
-            # Step 2: Retrieve relevant chunks from vector store
-            relevant_chunks = rag_service.search_vector_db(vector_store, rewrite)
-            logger.info("Retrieved %d relevant chunks from vector store", len(relevant_chunks))
-            # Step 3: build context string
-            context = "\n\n".join(chunk.page_content for chunk in relevant_chunks)
-            span.update(
+
+        generation.update(
+            input={
+                "original_query": query,
+                "history": history,
+            },
+            output={
+                "retrieval_query": rewrite,
+            },
+        )
+
+    # Step 3: Retrieve relevant chunks
+    with langfuse.start_as_current_observation(
+        as_type="span",
+        name="retrieve",
+        ) as span:
+
+        relevant_chunks = rag_service.search_vector_db(
+            vector_store,
+            rewrite,
+         )
+
+        context = "\n\n".join(
+            chunk.page_content
+            for chunk in relevant_chunks
+            )
+
+        span.update(
+            input={
+                "retrieval_query": rewrite,
+            },
             output={
                 "chunks_count": len(relevant_chunks),
-                "context_length": len(context)
-            }
-        )
+                "context_length": len(context),
+            },
+            )
         chat_prompt = langfuse.get_prompt(
             "muallim-system-prompt",
             type="chat"
-        )
+            )
 
         compiled_prompt = chat_prompt.compile(
             context=context,
             language=language
-        )
+            )
 
         messages = [
             *compiled_prompt,
             *history,
-            HumanMessage(content=query),
+            HumanMessage(
+                content=f"""Original user question:
+        {query}
+
+        Resolved retrieval intent:
+        {rewrite}"""
+            ),
         ]
+        
          # Create a nested generation for an LLM call
         with langfuse.start_as_current_observation(
             as_type="generation", 
