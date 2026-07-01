@@ -43,7 +43,7 @@ def ask(
         2. Retrieves relevant chunks from the vector store.
         3. Generates a response using the LLM.
     """
-    with langfuse.start_as_current_trace(as_type="trace", name="ask-request") as trace :
+    with langfuse._start_as_current_otel_span_with_processed_media(as_type="trace", name="ask-request") as trace :
         logger.info("Processing ask for user session")
         # Create a span using a context manager
         with langfuse.start_as_current_observation(as_type="span", name="stt-request") as span:
