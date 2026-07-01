@@ -94,6 +94,7 @@ def ask(
                     llm = _get_llm()
                     response = llm.invoke(messages)
                     generation.update(
+                    input={"messages": messages},
                     output={"response": response.content},
                     usage_details={
                         # to calculate Cost Per User, Cost Per Session, Token Consumption
