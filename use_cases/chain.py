@@ -83,7 +83,7 @@ def ask(
 
         relevant_chunks = rag_service.search_vector_db(
             vector_store,
-            rewrite,
+            rewrite.retrival_query,
          )
 
         context = "\n\n".join(
