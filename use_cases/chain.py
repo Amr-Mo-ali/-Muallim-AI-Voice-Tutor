@@ -14,6 +14,7 @@ from services.tts import service as tts_service
 
 
 from langchain_core.messages import HumanMessage, AIMessage
+from pydantic import BaseModel
 from langchain_groq import ChatGroq
 from langfuse import get_client
 
@@ -55,9 +56,12 @@ def ask(
             span.update(output={"query":query ,"language": language})
             # stor the rewrite_query in a new variable 
         # Create a span using a context manager
-        with langfuse.start_as_current_observation(as_type="span", name="relevant_chunks") as span:
+        with langfuse.start_as_current_observation(
+            input=("rewrite", rewrite),
+            as_type="span", 
+            name="relevant_chunks") as span:
             # Step 2: Retrieve relevant chunks from vector store
-            rewrite = rewrite_query(query)
+            rewrite = rewrite_query(query, history)
             relevant_chunks = rag_service.search_vector_db(vector_store, rewrite)
             logger.info("Retrieved %d relevant chunks from vector store", len(relevant_chunks))
             # Step 3: build context string
@@ -81,7 +85,7 @@ def ask(
         messages = [
             *compiled_prompt,
             *history,
-            HumanMessage(content=rewrite),
+            HumanMessage(content=query),
         ]
          # Create a nested generation for an LLM call
         with langfuse.start_as_current_observation(
@@ -154,21 +158,38 @@ def _get_llm_for_query_rewriter() -> ChatGroq:
         api_key=_GROQ_API_KEY,
     )
 
-def rewrite_query(query) -> str:
+def rewrite_query(query: str, history: list) -> str:
+    """
+    Rewrite the user's query into a retrieval-optimized query.
+
+    Args:
+        query: Original user query.
+        history: Conversation history.
+
+    Returns:
+        A rewritten query optimized for retrieval.
+        Falls back to the original query if rewriting fails.
+    """
+
     prompt = langfuse.get_prompt(
-            "muallim-rewrite_query-prompt",
-            type="chat"
-        )
-    
+        "muallim-rewrite_query-prompt",
+        type="chat",
+    )
+
     llm = _get_llm_for_query_rewriter()
 
-    try :
-        rewritten = llm.invoke(prompt.compile(query=query))
-    except:
-        rewritten = query
-    
-    return rewritten.content
+    compiled_prompt = prompt.compile(
+        query=query,
+        history=history,
+    )
 
+    try:
+        response = llm.invoke(compiled_prompt)
+        return response.content.strip()
+
+    except Exception:
+        logger.exception("Query rewriting failed.")
+        return query
 def _normalize_language(lang_code: str) -> str:
     """
     Normalize language names to a consistent format.
