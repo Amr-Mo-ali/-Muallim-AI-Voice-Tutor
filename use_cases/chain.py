@@ -113,15 +113,9 @@ def ask(
         messages = [
             *compiled_prompt,
             *history,
-            HumanMessage(
-                content=f"""Original user question:
-        {query}
-
-        Resolved retrieval intent:
-        {rewrite}"""
-            ),
-        ]
-        
+            HumanMessage(content=query)
+            ]
+            
          # Create a nested generation for an LLM call
         with langfuse.start_as_current_observation(
             as_type="generation", 
