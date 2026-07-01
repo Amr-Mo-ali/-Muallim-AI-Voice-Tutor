@@ -91,7 +91,6 @@ def ask(
         with langfuse.start_as_current_observation(
             as_type="generation", 
             name="llm-response",
-            input=context,
             model=_MODEL_NAME) as generation:
                 try:
                     # Step 4: Generate response using LLM
