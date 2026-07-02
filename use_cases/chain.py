@@ -135,6 +135,13 @@ def ask(
             model=_MODEL_NAME) as generation:
                 try:
                     # Step 4: Generate response using LLM
+                    print(type(compiled_prompt))
+                    print(compiled_prompt)
+
+                    print("=" * 80)
+
+                    for i, m in enumerate(compiled_prompt):
+                        print(i, type(m), m)
                     llm = _get_llm()
                     response = llm.invoke(messages)
                     generation.update(
