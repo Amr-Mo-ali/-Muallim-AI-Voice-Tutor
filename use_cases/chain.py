@@ -31,12 +31,27 @@ _GROQ_API_KEY = settings.groq_api_key.get_secret_value()
 _MODEL_NAME = "llama-3.3-70b-versatile"  # choose the appropriate model for your use case
 _MODEL_NAME_FOR_QUERY_REWRITER = "llama-3.1-8b-instant"
 langfuse = get_client()
+
+#── helpers ───────────────────────────────────────────────────────────────
+def build_context(chunks):
+
+    context = []
+
+    for chunk in chunks:
+
+        page = chunk.metadata.get("page", "?")
+
+        context.append(
+            f"[Page {page}]\n{chunk.page_content}"
+        )
+
+    return "\n\n".join(context)
 # ── public API ────────────────────────────────────────────────────────────────
 def ask(
     audio_bytes: bytes,
     history: list,
     vector_store
-) -> tuple[str, bytes, list, str]:
+    ) -> tuple[str, bytes, list, str]:
     """
         Orchestrates the RAG pipeline:
         1. Transcribes audio to text.
@@ -57,66 +72,63 @@ def ask(
             # stor the rewrite_query in a new variable 
         # Create a span using a context manager
         # Step 2: Rewrite the query
-    with langfuse.start_as_current_observation(
-        as_type="generation",
-        name="query-rewrite",
-        model=_MODEL_NAME_FOR_QUERY_REWRITER,
-        ) as generation:
-
-        rewrite = rewrite_query(query, history)
-
-        generation.update(
-            input={
-                "original_query": query,
-                "history": history,
-            },
-            output={
-                "retrieval_query": rewrite,
-            },
-        )
-
-    # Step 3: Retrieve relevant chunks
-    with langfuse.start_as_current_observation(
-        as_type="span",
-        name="retrieve",
-        ) as span:
-
-        relevant_chunks = rag_service.search_vector_db(
-            vector_store,
-            rewrite,
-         )
-
-        context = "\n\n".join(
-            chunk.page_content
-            for chunk in relevant_chunks
+        with langfuse.start_as_current_observation(
+            as_type="generation",
+            name="query-rewrite",
+            model=_MODEL_NAME_FOR_QUERY_REWRITER,
+            ) as generation:
+            rewrite = rewrite_query(query, history)
+            generation.update(
+                input={
+                    "original_query": query,
+                    "history": history,
+                },
+                output={
+                    "retrieval_query": rewrite,
+                },
             )
-
-        span.update(
-            input={
-                "retrieval_query": rewrite,
-            },
-            output={
+        # Step 3: Retrieve relevant chunks
+        with langfuse.start_as_current_observation(
+            as_type="span",
+            name="retrieve",
+            ) as span:
+            relevant_chunks = rag_service.search_vector_db(
+                vector_store,
+                rewrite,
+            )
+            context = build_context(relevant_chunks)
+            span.update(
+                input={
+                    "retrieval_query": rewrite,
+                },
+                output={
                 "chunks_count": len(relevant_chunks),
                 "context_length": len(context),
-            },
-            )
-        chat_prompt = langfuse.get_prompt(
-            "muallim-system-prompt",
-            type="chat"
-            )
-
-        compiled_prompt = chat_prompt.compile(
-            context=context,
-            language=language
-            )
-
-        messages = [
-            *compiled_prompt,
-            *history,
-            HumanMessage(content=query)
-            ]
-            
-         # Create a nested generation for an LLM call
+                "pages": [
+                    doc.metadata.get("page")
+                    for doc in relevant_chunks
+                ],
+                "sources": list({
+                    doc.metadata.get("source")
+                    for doc in relevant_chunks
+                }),
+                },
+                )
+            chat_prompt = langfuse.get_prompt(
+                "muallim-system-prompt",
+                type="chat"
+                )
+            compiled_prompt = chat_prompt.compile(
+                context=context,
+                language=language
+                )
+            messages = [
+                *compiled_prompt,
+                *history,
+                HumanMessage(content=query)
+                ]
+                
+            # Create a nested generation for an LLM call
         with langfuse.start_as_current_observation(
             as_type="generation", 
             name="llm-response",
@@ -150,7 +162,6 @@ def ask(
                 logger.warning("TTS failed, returning text only: %s", e)
                 span.update(output={"error": str(e), "fallback": "text-only"})
                 audio_file = b"" 
-
         updated_history = [
         *history,
         HumanMessage(content=query),
