@@ -203,6 +203,7 @@ def rewrite_query(query: str, history: list) -> str:
         "muallim-rewrite_query-prompt",
         type="chat",
     )
+    
 
     llm = _get_llm_for_query_rewriter()
 
@@ -218,6 +219,31 @@ def rewrite_query(query: str, history: list) -> str:
     except Exception:
         logger.exception("Query rewriting failed.")
         return query
+    
+
+def validate_rewrite(original: str, rewrite: str) -> str:
+
+    rewrite = rewrite.strip()
+
+    if not rewrite:
+        return original
+
+    if len(rewrite) > 500:
+        return original
+
+    banned = [
+        "User Query:",
+        "Rewritten Query:",
+        "Answer:",
+        "Explanation:",
+        "Output:",
+    ]
+
+    if any(x.lower() in rewrite.lower() for x in banned):
+        return original
+
+    return rewrite
+
 def _normalize_language(lang_code: str) -> str:
     """
     Normalize language names to a consistent format.
