@@ -116,12 +116,16 @@ def ask(
                 )
             chat_prompt = langfuse.get_prompt(
                 "muallim-system-prompt",
-                type="chat"
-                )
+                type="chat",
+            )
+
             compiled_prompt = chat_prompt.compile(
                 context=context,
-                language=language
-                )
+                language=language,
+            )
+
+            print(type(compiled_prompt))
+            print(compiled_prompt)
             messages = [
                 *compiled_prompt,
                 *history,
