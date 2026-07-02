@@ -33,9 +33,9 @@ _HF_API_KEY = settings.hf_token.get_secret_value()
 # ── constants ─────────────────────────────────────────────────────────────────
 _CHUNK_SIZE         = 512
 _CHUNK_OVERLAP      = 100
-_RETRIEVER_K        = 8
+_RETRIEVER_K        = 5
 _RETRIEVER_FETCH_K  = 20
-_EMBEDDING_MODEL    = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+_EMBEDDING_MODEL    = "BAAI/bge-m3"
 
 # ── singletons ────────────────────────────────────────────────────────────────
 @lru_cache(maxsize=1)
@@ -106,7 +106,16 @@ def load_and_chunk(bytes_data: bytes) -> list[Document]:
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=_CHUNK_SIZE,
         chunk_overlap=_CHUNK_OVERLAP,
-        separators=["\n\n", "\n", ".", " "],
+        separators=[
+    "\n\n",
+    "\n",
+    ".",
+    "؟",
+    "!",
+    "،",
+    "؛",
+    " ",
+    ],
     )
     chunks = splitter.split_documents(documents)
     chunks = _normalize_chunk_metadata(chunks)
@@ -180,6 +189,7 @@ def search_vector_db(
             search_kwargs={
                 "k": _RETRIEVER_K,
                 "fetch_k": _RETRIEVER_FETCH_K,
+                "lambda_mult":0.75
             },
         )
 

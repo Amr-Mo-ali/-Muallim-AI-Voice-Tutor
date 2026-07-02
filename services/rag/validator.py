@@ -1,72 +1,239 @@
 """
-This module contains functions for validating rewritten queries. It checks for various conditions such as length,
-banned patterns, and whether the rewrite is empty.
-The main function `validate_rewrite` returns a `RewriteResult` object that indicates whether the rewrite is valid or if a fallback should be used.
+Validation layer for the Query Rewriter.
+
+The validator protects the retrieval pipeline from malformed,
+hallucinated, or low-quality rewritten queries.
+
+Design Principles
+-----------------
+- Single Responsibility Principle
+- Open / Closed Principle
+- Strategy Pattern
+- Easy to extend
 """
-from .models import RewriteResult
 
-#___constants ___________________________________
-MAX_QUERY_WORDS = 40
-BANNED_PATTERNS = (
-    "User Query:",
-    "Rewritten Query:",
-    "Output:",
-    "Example:",
-    "Answer:",
-    "```",
-    "###",
-)
+from __future__ import annotations
 
-#___functions ___________________________________
-def validate_rewrite(
-        original: str,
-        rewritten: str,
-) -> RewriteResult:
-    rewrite = rewrite.strip()
+from abc import ABC, abstractmethod
+from enum import Enum
 
-    if not rewrite:
-        return RewriteResult(
-            original_query=original,
-            retrieval_query=original,
-            used_fallback=True,
-            fallback_reason="empty",
-            original_length=len(original),
-            rewritten_length=0,
+from pydantic import BaseModel
+
+
+# ==========================================================
+# Validation Models
+# ==========================================================
+
+
+class Severity(str, Enum):
+    INFO = "info"
+    WARNING = "warning"
+    ERROR = "error"
+
+
+class ValidationResult(BaseModel):
+    """
+    Result returned by a validation rule.
+    """
+
+    passed: bool
+    severity: Severity
+    reason: str | None = None
+
+
+# ==========================================================
+# Base Rule
+# ==========================================================
+
+
+class ValidationRule(ABC):
+    """
+    Base interface for all validation rules.
+    """
+
+    @abstractmethod
+    def validate(
+        self,
+        original_query: str,
+        rewritten_query: str,
+    ) -> ValidationResult:
+        pass
+
+
+# ==========================================================
+# Rules
+# ==========================================================
+
+
+class EmptyRule(ValidationRule):
+
+    def validate(self, original_query, rewritten_query):
+
+        if not rewritten_query.strip():
+            return ValidationResult(
+                passed=False,
+                severity=Severity.ERROR,
+                reason="Rewrite is empty.",
+            )
+
+        return ValidationResult(
+            passed=True,
+            severity=Severity.INFO,
         )
 
-    if any(x.lower() in rewrite.lower() for x in BANNED_PATTERNS):
-        return RewriteResult(
-            original_query=original,
-            retrieval_query=original,
-            used_fallback=True,
-            fallback_reason="pattern_detected",
-            original_length=len(original),
-            rewritten_length=len(rewrite),
+
+class LengthRule(ValidationRule):
+
+    def __init__(self, max_chars: int = 500):
+        self.max_chars = max_chars
+
+    def validate(self, original_query, rewritten_query):
+
+        if len(rewritten_query) > self.max_chars:
+
+            return ValidationResult(
+                passed=False,
+                severity=Severity.WARNING,
+                reason=f"Rewrite exceeds {self.max_chars} characters.",
+            )
+
+        return ValidationResult(
+            passed=True,
+            severity=Severity.INFO,
         )
 
-    if len(rewrite.split()) > MAX_QUERY_WORDS:
-        return RewriteResult(
-            original_query=original,
-            retrieval_query=original,
-            used_fallback=True,
-            fallback_reason="too_long",
-            original_length=len(original),
-            rewritten_length=len(rewrite),
+
+class PromptLeakageRule(ValidationRule):
+
+    BANNED_PATTERNS = (
+        "User Query:",
+        "Rewritten Query:",
+        "Answer:",
+        "Explanation:",
+        "Output:",
+        "Original Query:",
+    )
+
+    def validate(self, original_query, rewritten_query):
+
+        lower = rewritten_query.lower()
+
+        for pattern in self.BANNED_PATTERNS:
+
+            if pattern.lower() in lower:
+
+                return ValidationResult(
+                    passed=False,
+                    severity=Severity.ERROR,
+                    reason=f"Prompt leakage detected ({pattern})",
+                )
+
+        return ValidationResult(
+            passed=True,
+            severity=Severity.INFO,
         )
 
-    if len(rewrite) > len(original) * 3:
-        return RewriteResult(
-            original_query=original,
-            retrieval_query=original,
-            used_fallback=True,
-            fallback_reason="expanded_too_much",
-            original_length=len(original),
-            rewritten_length=len(rewrite),
+
+class SameQueryRule(ValidationRule):
+    """
+    Detects when the model simply echoes the original query.
+    """
+
+    def validate(self, original_query, rewritten_query):
+
+        if (
+            original_query.strip().lower()
+            == rewritten_query.strip().lower()
+        ):
+
+            return ValidationResult(
+                passed=False,
+                severity=Severity.WARNING,
+                reason="Rewrite identical to original query.",
+            )
+
+        return ValidationResult(
+            passed=True,
+            severity=Severity.INFO,
         )
 
-    return RewriteResult(
-        original_query=original,
-        retrieval_query=rewrite,
-        original_length=len(original),
-        rewritten_length=len(rewrite),
+
+# ==========================================================
+# Validator
+# ==========================================================
+
+
+class RewriteValidator:
+    """
+    Executes validation rules sequentially.
+
+    Stops immediately on ERROR.
+
+    WARNINGS are collected but do not stop execution.
+    """
+
+    def __init__(
+        self,
+        rules: list[ValidationRule],
+    ):
+        self.rules = rules
+
+    def validate(
+        self,
+        original_query: str,
+        rewritten_query: str,
+    ) -> ValidationResult:
+
+        warnings = []
+
+        for rule in self.rules:
+
+            result = rule.validate(
+                original_query,
+                rewritten_query,
+            )
+
+            if (
+                not result.passed
+                and result.severity == Severity.ERROR
+            ):
+                return result
+
+            if (
+                not result.passed
+                and result.severity == Severity.WARNING
+            ):
+                warnings.append(result.reason)
+
+        if warnings:
+
+            return ValidationResult(
+                passed=True,
+                severity=Severity.WARNING,
+                reason="\n".join(warnings),
+            )
+
+        return ValidationResult(
+            passed=True,
+            severity=Severity.INFO,
+        )
+
+
+# ==========================================================
+# Factory
+# ==========================================================
+
+
+def build_default_validator() -> RewriteValidator:
+    """
+    Returns the default validator used in production.
+    """
+
+    return RewriteValidator(
+        rules=[
+            EmptyRule(),
+            PromptLeakageRule(),
+            LengthRule(max_chars=500),
+            SameQueryRule(),
+        ]
     )
