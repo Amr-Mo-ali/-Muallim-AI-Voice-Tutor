@@ -118,6 +118,9 @@ def load_and_chunk(bytes_data: bytes) -> list[Document]:
     " ",
     ],
     )
+    
+    chunks = splitter.split_documents(documents)
+
     for idx, chunk in enumerate(chunks):
         chunk.metadata["chunk_index"] = idx
     chunks = _normalize_chunk_metadata(chunks)
