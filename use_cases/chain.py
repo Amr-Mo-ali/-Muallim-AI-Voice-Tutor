@@ -131,6 +131,7 @@ def ask(
                 context=context,
                 language=language,
             )
+            print(chat_prompt.variables)
             print(type(compiled_prompt))
             print(compiled_prompt)
             print(
