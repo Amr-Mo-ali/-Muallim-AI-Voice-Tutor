@@ -53,8 +53,6 @@ def build_context(chunks):
 
     return "\n\n".join(context)
 # ── public API ────────────────────────────────────────────────────────────────
-import langfuse
-print(langfuse.__version__)
 def ask(
     audio_bytes: bytes,
     history: list,
@@ -240,7 +238,7 @@ def format_history(history):
 def rewrite_query(query: str, history: list) -> str:
     prompt = langfuse.get_prompt(
         "muallim-rewrite_query-prompt",
-        type="text",
+        type="chat",
     )
     print(type(prompt))
     print(dir(prompt))
@@ -259,15 +257,16 @@ def rewrite_query(query: str, history: list) -> str:
             history="Student: hello\nTutor: hi"
         )
     )
-    print(type(compiled_prompt))
     print(compiled_prompt)
+    print(type(compiled_prompt))
 
     llm = _get_llm_for_query_rewriter()
 
     try:
         response = llm.invoke(compiled_prompt)
         return response.content.strip()
-
+        print(type(compiled_prompt))
+        print(compiled_prompt)
     except Exception:
         logger.exception("Query rewriting failed.")
         return query
