@@ -8,6 +8,8 @@ This module serves as the central coordinator for processing audio queries and g
 """
 from __future__ import annotations
 
+from typer import prompt
+
 from services.rag import service as rag_service
 from services.stt import service as stt_service
 from services.tts import service as tts_service
@@ -126,7 +128,9 @@ def ask(
                 context=context,
                 language=language,
             )
-
+            print(chat_prompt.name)
+            print(chat_prompt.version)
+            print(chat_prompt.compile(query="test", history=[]))
             logger.info(
                 pformat(compiled_prompt, width=120)
             )
@@ -235,6 +239,9 @@ def rewrite_query(query: str, history: list) -> str:
         history=format_history(recent_history),
         query=query,
     )
+    print(prompt.name)
+    print(prompt.version)
+    print(prompt.compile(query="test", history=[]))
 
     llm = _get_llm_for_query_rewriter()
 
