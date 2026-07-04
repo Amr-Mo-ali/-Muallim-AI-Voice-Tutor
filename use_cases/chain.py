@@ -31,6 +31,7 @@ _GROQ_API_KEY = settings.groq_api_key.get_secret_value()
 # ── constants ─────────────────────────────────────────────────────────────────
 _MODEL_NAME = "llama-3.3-70b-versatile"  # choose the appropriate model for your use case
 _MODEL_NAME_FOR_QUERY_REWRITER = "llama-3.1-8b-instant"
+MAX_HISTORY = 4
 langfuse = get_client()
 
 #── helpers ───────────────────────────────────────────────────────────────
@@ -207,31 +208,35 @@ def _get_llm_for_query_rewriter() -> ChatGroq:
         model=_MODEL_NAME_FOR_QUERY_REWRITER,
         api_key=_GROQ_API_KEY,
     )
+def format_history(history):
+    lines = []
+
+    for msg in history:
+        if msg.type == "human":
+            role = "Student"
+        elif msg.type == "ai":
+            role = "Tutor"
+        else:
+            continue
+
+        lines.append(f"{role}: {msg.content}")
+
+    return "\n\n".join(lines)
 
 def rewrite_query(query: str, history: list) -> str:
-    """
-    Rewrite the user's query into a retrieval-optimized query.
-
-    Args:
-        query: Original user query.
-        history: Conversation history.
-
-    Returns:
-        A rewritten query optimized for retrieval.
-        Falls back to the original query if rewriting fails.
-    """
-
     prompt = langfuse.get_prompt(
         "muallim-rewrite_query-prompt",
-        type="chat",
+        type="text",
+    )
+
+    recent_history = history[-4:]
+
+    compiled_prompt = prompt.compile(
+        history=format_history(recent_history),
+        query=query,
     )
 
     llm = _get_llm_for_query_rewriter()
-
-    compiled_prompt = prompt.compile(
-        query=query,
-        history=history,
-    )
 
     try:
         response = llm.invoke(compiled_prompt)
