@@ -21,6 +21,7 @@ from langfuse import get_client
 from functools import lru_cache
 import logging
 from config import settings
+from pprint import pformat
 
 
 # ── logging ───────────────────────────────────────────────────────────────────
@@ -141,7 +142,6 @@ def ask(
             model=_MODEL_NAME) as generation:
                 try:
                     # Step 4: Generate response using LLM
-                    from pprint import pformat
 
                     logger.info(
                         pformat(messages, width=120)
