@@ -98,21 +98,22 @@ def ask(
             )
             context = build_context(relevant_chunks)
             span.update(
-                input={
-                    "retrieval_query": rewrite,
-                },
                 output={
-                "chunks_count": len(relevant_chunks),
-                "context_length": len(context),
-                "pages": [
-                    doc.metadata.get("page")
-                    for doc in relevant_chunks
-                ],
-                "sources": list({
-                    doc.metadata.get("source")
-                    for doc in relevant_chunks
-                }),
-                },
+                    "chunks_count": len(relevant_chunks),
+                    "pages": [
+                        c.metadata.get("page")
+                        for c in relevant_chunks
+                    ],
+                    "chunk_indices": [
+                        c.metadata.get("chunk_index")
+                        for c in relevant_chunks
+                    ],
+                    "sources": list({
+                        c.metadata.get("source")
+                        for c in relevant_chunks
+                    }),
+                    "context_length": len(context),
+                }
                 )
             chat_prompt = langfuse.get_prompt(
                 "muallim-system-prompt",
