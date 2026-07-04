@@ -237,7 +237,7 @@ def format_history(history):
 
 def rewrite_query(query: str, history: list) -> str:
     prompt = langfuse.get_prompt(
-        "muallim-rewrite_query-prompt",
+        "muallim-rewrite_query-prompt2",
         type="chat",
     )
     print(type(prompt))
