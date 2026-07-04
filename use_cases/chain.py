@@ -8,7 +8,7 @@ This module serves as the central coordinator for processing audio queries and g
 """
 from __future__ import annotations
 
-from typer import prompt
+#from typer import prompt
 
 from services.rag import service as rag_service
 from services.stt import service as stt_service
