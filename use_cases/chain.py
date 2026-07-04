@@ -8,6 +8,8 @@ This module serves as the central coordinator for processing audio queries and g
 """
 from __future__ import annotations
 
+from click import prompt
+
 #from typer import prompt
 
 from services.rag import service as rag_service
@@ -91,6 +93,8 @@ def ask(
                     "retrieval_query": rewrite,
                 },
             )
+        import langfuse
+        print(langfuse.__version__)
         # Step 3: Retrieve relevant chunks
         with langfuse.start_as_current_observation(
             as_type="span",
@@ -237,7 +241,8 @@ def rewrite_query(query: str, history: list) -> str:
         "muallim-rewrite_query-prompt",
         type="text",
     )
-
+    print(type(prompt))
+    print(dir(prompt))
     recent_history = history[-MAX_HISTORY:]
 
     compiled_prompt = prompt.compile(
