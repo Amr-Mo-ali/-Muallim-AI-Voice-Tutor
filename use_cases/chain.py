@@ -147,8 +147,6 @@ def ask(
                     logger.info(
                         pformat(messages, width=120)
                     )
-                    print(type(compiled_prompt))
-                    pprint(compiled_prompt)
                     llm = _get_llm()
                     response = llm.invoke(messages)
                     generation.update(
