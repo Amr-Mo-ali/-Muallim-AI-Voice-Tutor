@@ -124,8 +124,9 @@ def ask(
                 language=language,
             )
 
-            print(type(compiled_prompt))
-            print(compiled_prompt)
+            logger.info(
+                pformat(compiled_prompt, width=120)
+            )
             messages = [
                 *compiled_prompt,
                 *history,
@@ -139,13 +140,11 @@ def ask(
             model=_MODEL_NAME) as generation:
                 try:
                     # Step 4: Generate response using LLM
-                    print(type(compiled_prompt))
-                    print(compiled_prompt)
+                    from pprint import pformat
 
-                    print("=" * 80)
-
-                    for i, m in enumerate(compiled_prompt):
-                        print(i, type(m), m)
+                    logger.info(
+                        pformat(messages, width=120)
+                    )
                     llm = _get_llm()
                     response = llm.invoke(messages)
                     generation.update(
