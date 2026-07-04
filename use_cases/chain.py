@@ -53,6 +53,8 @@ def build_context(chunks):
 
     return "\n\n".join(context)
 # ── public API ────────────────────────────────────────────────────────────────
+import langfuse
+print(langfuse.__version__)
 def ask(
     audio_bytes: bytes,
     history: list,
@@ -93,8 +95,7 @@ def ask(
                     "retrieval_query": rewrite,
                 },
             )
-        import langfuse
-        print(langfuse.__version__)
+        
         # Step 3: Retrieve relevant chunks
         with langfuse.start_as_current_observation(
             as_type="span",
