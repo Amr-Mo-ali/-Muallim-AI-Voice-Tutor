@@ -229,7 +229,7 @@ def rewrite_query(query: str, history: list) -> str:
         type="text",
     )
 
-    recent_history = history[-4:]
+    recent_history = history[-MAX_HISTORY:]
 
     compiled_prompt = prompt.compile(
         history=format_history(recent_history),
