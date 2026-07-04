@@ -128,9 +128,8 @@ def ask(
                 context=context,
                 language=language,
             )
-            print(chat_prompt.name)
-            print(chat_prompt.version)
-            print(chat_prompt.compile(query="test", history=[]))
+            print(type(compiled_prompt))
+            print(compiled_prompt)
             logger.info(
                 pformat(compiled_prompt, width=120)
             )
