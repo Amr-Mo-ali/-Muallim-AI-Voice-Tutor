@@ -1,7 +1,9 @@
 """
-What contract does this module promise?
-If Settings() succeeds,
-every consumer can trust the configuration. 
+Configuration module.
+
+Contract:
+    If `Settings` is created successfully,
+    every consumer can safely rely on the application configuration.
 """
 
 from pydantic import SecretStr

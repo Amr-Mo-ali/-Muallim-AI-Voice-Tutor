@@ -1,3 +1,6 @@
+"""
+Document processing utilities for handling PDF documents.
+"""
 from __future__ import annotations
 
 import logging
@@ -11,10 +14,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
 
-# ── Chunking configuration ────────────────────────────────────────────────────
+# ── Constants ────────────────────────────────────────────────────
 _CHUNK_SIZE = 512
 _CHUNK_OVERLAP = 100
-
 _SEPARATORS = [
     "\n\n",
     "\n",
@@ -25,7 +27,7 @@ _SEPARATORS = [
     "؛",
     " ",
 ]
-
+#────────────────────────────────────────────────────
 
 def _load_document(bytes_data: bytes) -> list[Document]:
     """
@@ -38,7 +40,10 @@ def _load_document(bytes_data: bytes) -> list[Document]:
     if not bytes_data:
         raise ValueError("Document cannot be empty.")
 
-    logger.info("Loading document")
+    logger.info(
+    "Loaded %d pages.",
+    len(bytes_data),
+)
 
     tmp_path: str | None = None
 
@@ -72,6 +77,34 @@ def _load_document(bytes_data: bytes) -> list[Document]:
                 )
 
 
+def _validate_page(page: Document) -> bool:
+    """
+    Check whether a page contains usable content.
+    Args:
+        page: A LangChain Document representing a single page.
+    Returns:
+        True if the page should continue through the pipeline,
+        otherwise False.
+    Notes:
+        This function only evaluates the page.
+        It does not modify it.
+    """
+    return bool(page.page_content.strip())
+
+
+def _filter_valid_pages(pages: list[Document]) -> list[Document]:
+    """
+    Remove invalid pages from the document collection.
+
+    Args:
+        pages: Pages extracted from the source document.
+
+    Returns:
+        A new list containing only valid pages.
+    """
+    
+    return [page for page in pages if _validate_page(page)]
+
 def _split_documents(documents: list[Document]) -> list[Document]:
     """
     Split documents into overlapping chunks.
@@ -81,7 +114,8 @@ def _split_documents(documents: list[Document]) -> list[Document]:
         chunk_overlap=_CHUNK_OVERLAP,
         separators=_SEPARATORS,
     )
-
+    if not documents:
+        return []
     return splitter.split_documents(documents)
 
 
@@ -95,6 +129,7 @@ def _enrich_chunk_metadata(chunks: list[Document]) -> None:
         chunk.metadata.setdefault("source", "uploaded_pdf")
         chunk.metadata.setdefault("page", 0)
         chunk.metadata["chunk_index"] = index
+        chunk.metadata["chunk_count"] = len(chunks)
 
 
 def load_and_chunk(bytes_data: bytes) -> list[Document]:
@@ -102,9 +137,21 @@ def load_and_chunk(bytes_data: bytes) -> list[Document]:
     Load a document and prepare chunks for downstream processing.
     """
     documents = _load_document(bytes_data)
-
-    chunks = _split_documents(documents)
-
+    logger.info(
+    "Loaded %d pages.",
+    len(documents),
+    )
+    filtered_documents = _filter_valid_pages(documents)
+    logger.info(
+        "valid_pages: %d/%d",
+        len(filtered_documents),
+        len(documents),
+    )
+    chunks = _split_documents(filtered_documents)
+    logger.info(
+    "Created %d chunks.",
+    len(chunks),
+    )
     _enrich_chunk_metadata(chunks)
 
     return chunks
