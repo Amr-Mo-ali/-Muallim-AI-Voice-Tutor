@@ -241,25 +241,12 @@ def rewrite_query(query: str, history: list) -> str:
         "muallim-rewrite_query-prompt2",
         type="chat",
     )
-    print(type(prompt))
-    print(dir(prompt))
     recent_history = history[-MAX_HISTORY:]
 
     compiled_prompt = prompt.compile(
         history=format_history(recent_history),
         query=query,
     )
-    print(prompt.name)
-    print(prompt.version)
-
-    print(
-        prompt.compile(
-            query="test",
-            history="Student: hello\nTutor: hi"
-        )
-    )
-    print(compiled_prompt)
-    print(type(compiled_prompt))
 
     llm = _get_llm_for_query_rewriter()
 
