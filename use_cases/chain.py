@@ -253,8 +253,6 @@ def rewrite_query(query: str, history: list) -> str:
     try:
         response = llm.invoke(compiled_prompt)
         return response.content.strip()
-        print(type(compiled_prompt))
-        print(compiled_prompt)
     except Exception:
         logger.exception("Query rewriting failed.")
         return query
