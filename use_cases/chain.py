@@ -30,7 +30,7 @@ from langchain_core.messages import (
 )
 from langchain_qdrant import QdrantVectorStore
 
-from services.rag.pipeline import answer_question
+from services.rag.rag_pipeline import answer_question
 from services.stt.service import transcribe
 from services.tts.service import synthesize
 
