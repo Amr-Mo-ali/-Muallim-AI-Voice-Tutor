@@ -2,45 +2,78 @@
 RAG pipeline orchestration.
 
 Responsibility:
-    Coordinate the RAG workflow.
+    Coordinate the end-to-end Retrieval-Augmented Generation workflow.
 
 Contract:
-    Execute the RAG pipeline by delegating work
-    to the appropriate services.
+    Orchestrate the pipeline by delegating each step
+    to the appropriate service.
+
+Workflow:
+
+    Indexing
+    --------
+    PDF
+      ↓
+    Document Service
+      ↓
+    Vector Store
+
+
+    Question Answering
+    ------------------
+    User Question
+          ↓
+    Query Rewriter
+          ↓
+    Retriever
+          ↓
+    Context Builder
+          ↓
+    Generator
+          ↓
+       Final Answer
 """
 
 from __future__ import annotations
 
 import logging
 
-from rag.context_builder import build_context
+from langchain_core.messages import BaseMessage
+from langchain_qdrant import QdrantVectorStore
+
 from rag.document_service import load_and_chunk
-from rag.retriever import retrieve
-from rag.vector_store import load_vector_store, get_or_create_vector_store
+from rag.vector_store import (
+    load_or_create_vector_store,
+)
 from rag.query_rewriter import rewrite_query
+from rag.retriever import retrieve
+from rag.context_builder import build_context
+from rag.generator import generate_answer
 
 logger = logging.getLogger(__name__)
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Indexing Pipeline
+# ──────────────────────────────────────────────────────────────────────────────
+
 def index_documents(
     bytes_data: bytes,
     collection_name: str,
-):
+) -> QdrantVectorStore:
     """
-    Build or load the vector store for a document collection.
+    Build (or load) the knowledge base for a document.
 
     Workflow:
-        Document
+        PDF
             ↓
         Chunking
             ↓
         Embedding
             ↓
         Vector Store
-
-    Returns:
-        Ready-to-use vector store.
     """
+
     logger.info(
         "Indexing document into collection '%s'",
         collection_name,
@@ -48,52 +81,67 @@ def index_documents(
 
     chunks = load_and_chunk(bytes_data)
 
-    store = get_or_create_vector_store(
+    store = load_or_create_vector_store(
         chunks=chunks,
         collection_name=collection_name,
     )
 
     logger.info(
-        "Knowledge base ready for '%s'",
-        collection_name,
+        "Knowledge base ready."
     )
 
     return store
 
 
-def retrieve_context(
+# ──────────────────────────────────────────────────────────────────────────────
+# Inference Pipeline
+# ──────────────────────────────────────────────────────────────────────────────
+
+def answer_question(
+    *,
     query: str,
-    collection_name: str,
+    history: list[BaseMessage],
+    language: str,
+    store: QdrantVectorStore,
 ) -> str:
     """
-    Retrieve the context required to answer a user query.
+    Execute the complete RAG inference pipeline.
 
     Workflow:
-        Load Vector Store
-              ↓
-        Retrieve Chunks
-              ↓
-        Build Context
 
-    Returns:
-        Context ready for the LLM.
+        Original Question
+                ↓
+         Rewrite Query
+                ↓
+          Retrieve Chunks
+                ↓
+          Build Context
+                ↓
+          Generate Answer
     """
-    logger.info(
-        "Retrieving context from '%s'",
-        collection_name,
-    )
 
-    store = load_vector_store(collection_name)
+    logger.info("Starting RAG pipeline.")
 
-    documents = retrieve(
-        store=store,
+    rewritten_query = rewrite_query(
         query=query,
+        history=history,
     )
 
-    context = build_context(documents)
-
-    logger.info(
-        "Context built successfully."
+    retrieved_chunks = retrieve(
+        store=store,
+        query=rewritten_query,
     )
 
-    return context
+    context = build_context(
+        retrieved_chunks,
+    )
+
+    answer = generate_answer(
+        query=query,
+        context=context,
+        language=language,
+    )
+
+    logger.info("RAG pipeline completed successfully.")
+
+    return answer
