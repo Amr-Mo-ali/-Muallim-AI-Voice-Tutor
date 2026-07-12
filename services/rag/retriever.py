@@ -9,11 +9,7 @@ Contract:
     return the most relevant document chunks for downstream generation.
 """
 
-# ── constants ─────────────────────────────────────────────────────────────────
-_RETRIEVER_K = 5
-_RETRIEVER_FETCH_K = 20
-_RETRIEVER_LAMBDA = 0.75
-#─────────────────────────────────────────────────────────────────
+
 from __future__ import annotations
 
 import logging
@@ -23,7 +19,11 @@ from langsmith import traceable
 from langchain_core.documents import Document
 from langchain_qdrant import QdrantVectorStore
 
-
+# ── constants ─────────────────────────────────────────────────────────────────
+_RETRIEVER_K = 5
+_RETRIEVER_FETCH_K = 20
+_RETRIEVER_LAMBDA = 0.75
+#─────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 
 def _validate_query(query: str) -> None:
