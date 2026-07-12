@@ -1,80 +1,132 @@
 """
-    Query Rewriter Service
-    Rewrites user queries to the best format the model can understand, based on the conversation history.
+Query rewriter service.
+
+Responsibility:
+    Rewrite the user's query using the conversation history.
+
+Contract:
+    Given the current user query and recent conversation history,
+    return a standalone query optimized for retrieval.
 """
 
 from __future__ import annotations
 
 import logging
-
-from langchain_groq import ChatGroq
 from functools import lru_cache
-from config import settings
+
+from langsmith import traceable
+from langchain_core.messages import BaseMessage
+from langchain_groq import ChatGroq
 from langfuse import get_client
 
+from config import settings
 
-MAX_HISTORY = 4
-_MODEL_NAME_FOR_QUERY_REWRITER = "llama-3.1-8b-instant"
+logger = logging.getLogger(__name__)
+
+# ── constants ────────────────────────────────────────────────────────────────
+
+_MAX_HISTORY = 4
+
+_MODEL_NAME = "llama-3.1-8b-instant"
+
 _GROQ_API_KEY = settings.groq_api_key.get_secret_value()
 
+_langfuse = get_client()
 
-langfuse = get_client()
-
-query_rewriter_logger = logging.getLogger(__name__)
 
 @lru_cache(maxsize=1)
-def _get_llm_for_query_rewriter() -> ChatGroq:
+def _get_llm() -> ChatGroq:
     """
-    Get a ChatGroq instance for generating responses.
-
-    Returns:
-        A ChatGroq instance initialized with the appropriate model and API key.
+    Return the singleton LLM used for query rewriting.
     """
     return ChatGroq(
-        model=_MODEL_NAME_FOR_QUERY_REWRITER,
+        model=_MODEL_NAME,
         api_key=_GROQ_API_KEY,
     )
 
 
-def format_history(history):
-    lines = []
-
-    for msg in history:
-        if msg.type == "human":
-            role = "Student"
-        elif msg.type == "ai":
-            role = "Tutor"
-        else:
-            continue
-        lines.append(f"{role}: {msg.content}")
-    return "\n\n".join(lines)
-
-def rewrite_query(query: str, history: list) -> str:
+@lru_cache(maxsize=1)
+def _get_prompt():
     """
-    Rewrite the user query based on the conversation history.
-
-    Args:
-        query (str): The original user query.
-        history (list): The conversation history.
-
-    Returns:
-        str: The rewritten query.
+    Load the rewrite prompt from Langfuse.
     """
-    prompt = langfuse.get_prompt(
+    return _langfuse.get_prompt(
         "muallim-rewrite_query-prompt2",
         type="chat",
     )
-    recent_history = history[-MAX_HISTORY:]
+
+
+def _validate_query(query: str) -> None:
+    """
+    Validate the incoming query.
+    """
+    if not query.strip():
+        raise ValueError("Query cannot be empty.")
+
+
+def _format_history(
+    history: list[BaseMessage],
+) -> str:
+    """
+    Convert conversation history into prompt text.
+    """
+    lines: list[str] = []
+
+    for message in history:
+
+        if message.type == "human":
+            role = "Student"
+
+        elif message.type == "ai":
+            role = "Tutor"
+
+        else:
+            continue
+
+        lines.append(
+            f"{role}: {message.content}"
+        )
+
+    return "\n\n".join(lines)
+
+@traceable
+def rewrite_query(
+    query: str,
+    history: list[BaseMessage],
+) -> str:
+    """
+    Rewrite the user query into a standalone query.
+    """
+    _validate_query(query)
+
+    prompt = _get_prompt()
 
     compiled_prompt = prompt.compile(
-        history=format_history(recent_history),
+        history=_format_history(
+            history[-_MAX_HISTORY:]
+        ),
         query=query,
     )
 
-    llm = _get_llm_for_query_rewriter()
+    llm = _get_llm()
 
     try:
+
         response = llm.invoke(compiled_prompt)
-        return response.content.strip()
+
+        rewritten_query = response.content.strip()
+
+        logger.info(
+            "Query successfully rewritten."
+        )
+
+        return rewritten_query
+
     except Exception:
-        query_rewriter_logger.exception("Query rewriting failed.")
+
+        logger.exception(
+            "Query rewriting failed."
+        )
+
+        # Graceful degradation
+        return query

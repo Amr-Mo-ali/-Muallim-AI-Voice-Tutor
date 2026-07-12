@@ -10,16 +10,14 @@ Contract:
 """
 
 from __future__ import annotations
-S
+
 import logging
 
 from rag.context_builder import build_context
 from rag.document_service import load_and_chunk
 from rag.retriever import retrieve
-from rag.vector_store import (
-    load_or_create_vector_store,
-    load_vector_store,
-)
+from rag.vector_store import load_vector_store, get_or_create_vector_store
+from rag.query_rewriter import rewrite_query
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +48,7 @@ def index_documents(
 
     chunks = load_and_chunk(bytes_data)
 
-    store = load_or_create_vector_store(
+    store = get_or_create_vector_store(
         chunks=chunks,
         collection_name=collection_name,
     )

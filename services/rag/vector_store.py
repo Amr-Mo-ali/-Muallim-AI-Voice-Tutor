@@ -2,20 +2,18 @@
 Vector store service.
 
 Responsibility:
-    Store and load document embeddings in Qdrant.
+    Manage document embeddings stored in Qdrant.
 
-Contract:
-    After a successful call, the caller receives a ready-to-use
-    QdrantVectorStore instance.
-
-Guarantees:
-    - Returns a ready-to-use vector store.
-    - Creates the collection if it does not already exist.
+Public API:
+    - create_vector_store()
+    - load_vector_store()
+    - get_or_create_vector_store()
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from functools import lru_cache
 
 from langchain_core.documents import Document
@@ -26,106 +24,115 @@ from qdrant_client import QdrantClient
 
 from config import settings
 
-# ── logging ───────────────────────────────────────────────────────────────────
-
 logger = logging.getLogger(__name__)
 
-# ── configuration ─────────────────────────────────────────────────────────────
-
-_QDRANT_URL = settings.qdrant_url
-_QDRANT_API_KEY = settings.qdrant_api_key.get_secret_value()
-
-_HF_API_KEY = settings.hf_token.get_secret_value()
+# ──────────────────────────────────────────────────────────────
+# Configuration
+# ──────────────────────────────────────────────────────────────
 
 _EMBEDDING_MODEL = "BAAI/bge-m3"
 
-# ── singletons ────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+# Shared Resources
+# ──────────────────────────────────────────────────────────────
 
 @lru_cache(maxsize=1)
 def _get_qdrant_client() -> QdrantClient:
-    """Return a shared Qdrant client instance."""
+    """Return a shared Qdrant client."""
+
     return QdrantClient(
-        url=_QDRANT_URL,
-        api_key=_QDRANT_API_KEY,
+        url=settings.qdrant_url,
+        api_key=settings.qdrant_api_key.get_secret_value(),
     )
 
 
 @lru_cache(maxsize=1)
-def _get_embedding_model() -> HuggingFaceEndpointEmbeddings:
+def _get_embeddings() -> HuggingFaceEndpointEmbeddings:
     """Return the shared embedding model."""
-    logger.info("Loading embedding model: %s", _EMBEDDING_MODEL)
+
+    logger.info(
+        "Loading embedding model '%s'.",
+        _EMBEDDING_MODEL,
+    )
 
     return HuggingFaceEndpointEmbeddings(
         model=_EMBEDDING_MODEL,
         task="feature-extraction",
-        huggingfacehub_api_token=_HF_API_KEY,
+        huggingfacehub_api_token=settings.hf_token.get_secret_value(),
     )
 
 
-# ── validation ────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+# Private Helpers
+# ──────────────────────────────────────────────────────────────
 
-def _validate_chunks(chunks: list[Document]) -> None:
-    """
-    Validate the document collection before indexing.
-    """
+def _build_vector_store(
+    collection_name: str,
+) -> QdrantVectorStore:
+    """Return a vector store for an existing collection."""
+
+    return QdrantVectorStore(
+        client=_get_qdrant_client(),
+        collection_name=collection_name,
+        embedding=_get_embeddings(),
+    )
+
+
+def _validate_chunks(
+    chunks: Sequence[Document],
+) -> None:
+    """Validate documents before indexing."""
+
     if not chunks:
         raise ValueError(
             "Cannot create a vector store from an empty document collection."
         )
 
 
-# ── public API ────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────
+# Public API
+# ──────────────────────────────────────────────────────────────
 
 @traceable
-def load_or_create_vector_store(
-    chunks: list[Document],
+def create_vector_store(
     collection_name: str,
+    chunks: Sequence[Document],
 ) -> QdrantVectorStore:
     """
-    Load an existing vector store or create one if it does not exist.
+    Create a new vector store.
 
-    Guarantees:
-        - Returns a ready-to-use vector store.
-        - Creates the collection when it does not already exist.
+    Raises:
+        ValueError:
+            If the document collection is empty.
+
+        RuntimeError:
+            If the collection cannot be created.
     """
+
     _validate_chunks(chunks)
 
-    client = _get_qdrant_client()
+    logger.info(
+        "Creating vector store '%s' (%d chunks).",
+        collection_name,
+        len(chunks),
+    )
 
     try:
-        if client.collection_exists(collection_name):
-            logger.info(
-                "Loading existing vector store '%s'",
-                collection_name,
-            )
-
-            return QdrantVectorStore(
-                client=client,
-                collection_name=collection_name,
-                embedding=_get_embedding_model(),
-            )
-
-        logger.info(
-            "Creating vector store '%s' (%d chunks)",
-            collection_name,
-            len(chunks),
-        )
-
         return QdrantVectorStore.from_documents(
-            documents=chunks,
+            documents=list(chunks),
             collection_name=collection_name,
-            client=client,
-            embedding=_get_embedding_model(),
+            client=_get_qdrant_client(),
+            embedding=_get_embeddings(),
         )
 
     except Exception as exc:
         logger.exception(
-            "Failed to initialize vector store '%s'",
+            "Failed to create vector store '%s'.",
             collection_name,
         )
 
         raise RuntimeError(
-            f"Failed to initialize vector store '{collection_name}'."
+            f"Failed to create vector store '{collection_name}'."
         ) from exc
 
 
@@ -135,21 +142,45 @@ def load_vector_store(
 ) -> QdrantVectorStore:
     """
     Load an existing vector store.
+
+    Raises:
+        LookupError:
+            If the collection does not exist.
     """
+
     client = _get_qdrant_client()
 
     if not client.collection_exists(collection_name):
-        raise FileNotFoundError(
+        raise LookupError(
             f"Vector store '{collection_name}' does not exist."
         )
 
     logger.info(
-        "Loading vector store '%s'",
+        "Loading vector store '%s'.",
         collection_name,
     )
 
-    return QdrantVectorStore(
-        client=client,
+    return _build_vector_store(collection_name)
+
+
+@traceable
+def get_or_create_vector_store(
+    collection_name: str,
+    chunks: Sequence[Document],
+) -> QdrantVectorStore:
+    """
+    Return a ready-to-use vector store.
+
+    If the collection already exists, it is loaded.
+    Otherwise, a new collection is created.
+    """
+
+    client = _get_qdrant_client()
+
+    if client.collection_exists(collection_name):
+        return load_vector_store(collection_name)
+
+    return create_vector_store(
         collection_name=collection_name,
-        embedding=_get_embedding_model(),
+        chunks=chunks,
     )

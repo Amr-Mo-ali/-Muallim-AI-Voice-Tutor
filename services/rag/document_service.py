@@ -1,12 +1,34 @@
 """
-Document processing utilities for handling PDF documents.
+Document processing service.
+
+Responsibility:
+    Load PDF documents and prepare them for indexing.
+
+Contract:
+    Convert raw PDF bytes into enriched LangChain document chunks.
+
+Workflow:
+    PDF Bytes
+        ↓
+    Load Pages
+        ↓
+    Validate
+        ↓
+    Filter Empty Pages
+        ↓
+    Split into Chunks
+        ↓
+    Enrich Metadata
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import tempfile
+from functools import lru_cache
 from pathlib import Path
+from collections.abc import Sequence
 
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_core.documents import Document
@@ -14,10 +36,14 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 logger = logging.getLogger(__name__)
 
-# ── Constants ────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────────
+# Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+
 _CHUNK_SIZE = 512
 _CHUNK_OVERLAP = 100
-_SEPARATORS = [
+
+_SEPARATORS = (
     "\n\n",
     "\n",
     ".",
@@ -26,132 +52,197 @@ _SEPARATORS = [
     "،",
     "؛",
     " ",
-]
-#────────────────────────────────────────────────────
-
-def _load_document(bytes_data: bytes) -> list[Document]:
-    """
-    Load a document from raw bytes.
-
-    Guarantees:
-        - Returns LangChain Document objects.
-        - Cleans up temporary files.
-    """
-    if not bytes_data:
-        raise ValueError("Document cannot be empty.")
-
-    logger.info(
-    "Loaded %d pages.",
-    len(bytes_data),
 )
 
-    tmp_path: str | None = None
 
-    try:
-        # Use delete=False + manual cleanup (best practice on Windows)
-        # delete=False mean don`t delete the file automaticly
-        # suffix=".pdf" -> save the temp file as .pdf
-        with tempfile.NamedTemporaryFile(
-            suffix=".pdf",
-            delete=False,
-        ) as tmp:
-            tmp.write(bytes_data)
-            tmp.flush()
-            tmp_path = tmp.name
+# ──────────────────────────────────────────────────────────────────────────────
+# Splitter
+# ──────────────────────────────────────────────────────────────────────────────
 
-        loader = PyMuPDFLoader(tmp_path)
+@lru_cache(maxsize=1)
+def _get_splitter() -> RecursiveCharacterTextSplitter:
+    """Return a shared text splitter."""
 
-        return loader.load()
-
-    except Exception as exc:
-        raise RuntimeError("Failed to load document.") from exc
-
-    finally:
-        if tmp_path and Path(tmp_path).exists():
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                logger.warning(
-                    "Failed to delete temporary file: %s",
-                    tmp_path,
-                )
-
-
-def _validate_page(page: Document) -> bool:
-    """
-    Check whether a page contains usable content.
-    Args:
-        page: A LangChain Document representing a single page.
-    Returns:
-        True if the page should continue through the pipeline,
-        otherwise False.
-    Notes:
-        This function only evaluates the page.
-        It does not modify it.
-    """
-    return bool(page.page_content.strip())
-
-
-def _filter_valid_pages(pages: list[Document]) -> list[Document]:
-    """
-    Remove invalid pages from the document collection.
-
-    Args:
-        pages: Pages extracted from the source document.
-
-    Returns:
-        A new list containing only valid pages.
-    """
-    
-    return [page for page in pages if _validate_page(page)]
-
-def _split_documents(documents: list[Document]) -> list[Document]:
-    """
-    Split documents into overlapping chunks.
-    """
-    splitter = RecursiveCharacterTextSplitter(
+    return RecursiveCharacterTextSplitter(
         chunk_size=_CHUNK_SIZE,
         chunk_overlap=_CHUNK_OVERLAP,
         separators=_SEPARATORS,
     )
-    if not documents:
-        return []
-    return splitter.split_documents(documents)
 
 
-def _enrich_chunk_metadata(chunks: list[Document]) -> None:
+# ──────────────────────────────────────────────────────────────────────────────
+# Document Loading
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _load_document(bytes_data: bytes) -> list[Document]:
     """
-    Add default metadata required by the pipeline.
-    """
-    for index, chunk in enumerate(chunks):
-        chunk.metadata = chunk.metadata or {}
+    Load a PDF document from raw bytes.
 
-        chunk.metadata.setdefault("source", "uploaded_pdf")
-        chunk.metadata.setdefault("page", 0)
-        chunk.metadata["chunk_index"] = index
-        chunk.metadata["chunk_count"] = len(chunks)
+    Guarantees:
+        - Returns LangChain Document objects.
+        - Temporary files are always cleaned up.
+    """
+
+    if not bytes_data:
+        raise ValueError("Document cannot be empty.")
+
+    temp_path: str | None = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=".pdf",
+            delete=False,
+        ) as temp_file:
+            temp_file.write(bytes_data)
+            temp_file.flush()
+            temp_path = temp_file.name
+
+        pages = PyMuPDFLoader(temp_path).load()
+
+        logger.info(
+            "Loaded %d page(s).",
+            len(pages),
+        )
+
+        return pages
+
+    except Exception as exc:
+        logger.exception("Failed to load PDF document.")
+        raise RuntimeError("Failed to load document.") from exc
+
+    finally:
+        if temp_path and Path(temp_path).exists():
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                logger.warning(
+                    "Failed to delete temporary file '%s'.",
+                    temp_path,
+                )
 
 
-def load_and_chunk(bytes_data: bytes) -> list[Document]:
+# ──────────────────────────────────────────────────────────────────────────────
+# Validation
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _is_valid_page(page: Document) -> bool:
+    """Return True if the page contains readable content."""
+
+    return bool(page.page_content.strip())
+
+
+def _filter_valid_pages(
+    pages: Sequence[Document],
+) -> list[Document]:
     """
-    Load a document and prepare chunks for downstream processing.
+    Remove empty pages from the document.
     """
-    documents = _load_document(bytes_data)
+
+    valid_pages = [
+        page
+        for page in pages
+        if _is_valid_page(page)
+    ]
+
+    if not valid_pages:
+        raise ValueError(
+            "Document contains no readable content."
+        )
+
     logger.info(
-    "Loaded %d pages.",
-    len(documents),
+        "Validated pages: %d/%d",
+        len(valid_pages),
+        len(pages),
     )
-    filtered_documents = _filter_valid_pages(documents)
+
+    return valid_pages
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Chunking
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _split_documents(
+    pages: Sequence[Document],
+) -> list[Document]:
+    """
+    Split pages into overlapping chunks.
+    """
+
+    chunks = _get_splitter().split_documents(list(pages))
+
     logger.info(
-        "valid_pages: %d/%d",
-        len(filtered_documents),
-        len(documents),
+        "Created %d chunk(s).",
+        len(chunks),
     )
-    chunks = _split_documents(filtered_documents)
-    logger.info(
-    "Created %d chunks.",
-    len(chunks),
-    )
-    _enrich_chunk_metadata(chunks)
 
     return chunks
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Metadata
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _enrich_chunk_metadata(
+    chunks: list[Document],
+) -> list[Document]:
+    """
+    Add default metadata required by downstream services.
+    """
+
+    total_chunks = len(chunks)
+
+    for index, chunk in enumerate(chunks):
+
+        metadata = chunk.metadata or {}
+
+        metadata.setdefault(
+            "source",
+            "uploaded_pdf",
+        )
+
+        metadata.setdefault(
+            "page",
+            0,
+        )
+
+        metadata["chunk_index"] = index
+        metadata["chunk_count"] = total_chunks
+
+        chunk.metadata = metadata
+
+    return chunks
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Public API
+# ──────────────────────────────────────────────────────────────────────────────
+
+def load_and_chunk(
+    bytes_data: bytes,
+) -> list[Document]:
+    """
+    Load a PDF document and prepare chunks for indexing.
+
+    Workflow:
+        PDF Bytes
+            ↓
+        Load Pages
+            ↓
+        Filter Empty Pages
+            ↓
+        Split into Chunks
+            ↓
+        Enrich Metadata
+
+    Returns:
+        Ready-to-index document chunks.
+    """
+
+    pages = _load_document(bytes_data)
+
+    valid_pages = _filter_valid_pages(pages)
+
+    chunks = _split_documents(valid_pages)
+
+    return _enrich_chunk_metadata(chunks)

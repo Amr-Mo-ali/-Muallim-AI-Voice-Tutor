@@ -8,9 +8,6 @@ This module serves as the central coordinator for processing audio queries and g
 """
 from __future__ import annotations
 
-from click import prompt
-
-#from typer import prompt
 
 from services.rag import service as rag_service
 from services.stt import service as stt_service
@@ -131,15 +128,6 @@ def ask(
                 context=context,
                 language=language,
             )
-            print(chat_prompt.variables)
-            print(type(compiled_prompt))
-            print(compiled_prompt)
-            print(
-            chat_prompt.compile(
-                query="test",
-                history="Student: hello"
-            )
-            )
             logger.info(
                 pformat(compiled_prompt, width=120)
             )
@@ -209,53 +197,8 @@ def _get_llm() -> ChatGroq:
         api_key=_GROQ_API_KEY,
     )
 
-@lru_cache(maxsize=1)
-def _get_llm_for_query_rewriter() -> ChatGroq:
-    """
-    Get a ChatGroq instance for generating responses.
 
-    Returns:
-        A ChatGroq instance initialized with the appropriate model and API key.
-    """
-    return ChatGroq(
-        model=_MODEL_NAME_FOR_QUERY_REWRITER,
-        api_key=_GROQ_API_KEY,
-    )
-def format_history(history):
-    lines = []
 
-    for msg in history:
-        if msg.type == "human":
-            role = "Student"
-        elif msg.type == "ai":
-            role = "Tutor"
-        else:
-            continue
-
-        lines.append(f"{role}: {msg.content}")
-
-    return "\n\n".join(lines)
-
-def rewrite_query(query: str, history: list) -> str:
-    prompt = langfuse.get_prompt(
-        "muallim-rewrite_query-prompt2",
-        type="chat",
-    )
-    recent_history = history[-MAX_HISTORY:]
-
-    compiled_prompt = prompt.compile(
-        history=format_history(recent_history),
-        query=query,
-    )
-
-    llm = _get_llm_for_query_rewriter()
-
-    try:
-        response = llm.invoke(compiled_prompt)
-        return response.content.strip()
-    except Exception:
-        logger.exception("Query rewriting failed.")
-        return query
 def _normalize_language(lang_code: str) -> str:
     """
     Normalize language names to a consistent format.
