@@ -43,7 +43,7 @@ from langchain_qdrant import QdrantVectorStore
 
 from services.rag.document_service import load_and_chunk
 from services.rag.vector_store import (
-    load_or_create_vector_store,
+    get_or_create_vector_store,
 )
 from services.rag.query_rewriter import rewrite_query
 from services.rag.retriever import retrieve
@@ -81,7 +81,7 @@ def index_documents(
 
     chunks = load_and_chunk(bytes_data)
 
-    store = load_or_create_vector_store(
+    store = get_or_create_vector_store(
         chunks=chunks,
         collection_name=collection_name,
     )
@@ -135,7 +135,11 @@ def answer_question(
     context = build_context(
         retrieved_chunks,
     )
-
+    if not context:
+        logger.info("No relevant chunkd retrieved")
+        return (
+            "I couldn`t find relevant information in the upload documents"
+        )
     answer = generate_answer(
         query=query,
         context=context,
