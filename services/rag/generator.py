@@ -99,23 +99,6 @@ def _build_prompt(**variables):
     prompt = _get_prompt()
     return prompt.compile(**variables)
 
-def _normalize_language(lang_code: str) -> str:
-    """
-    Normalize language names to a consistent format.
-
-    Args:
-        lang_code: The language name as returned by the STT service (e.g., "Arabic", "English").
-
-    Returns:
-        A normalized language name (e.g., "Arabic" or "English").
-    """
-    lang = lang_code.lower()
-    if "ar" in lang:
-        return "Arabic"
-    elif "en" in lang:
-        return "English"
-    else:
-        return "English"  # default to English if unrecognized
 
 
 # ── public API ────────────────────────────────────────────────────────────────
@@ -135,7 +118,7 @@ def generate_answer(
     variables = _build_prompt_variables(
         query=query,
         context=context,
-        language=_normalize_language(language),
+        language=language,
     )
 
     messages = _build_prompt(**variables)
