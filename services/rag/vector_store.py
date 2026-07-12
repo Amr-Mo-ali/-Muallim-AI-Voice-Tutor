@@ -33,6 +33,13 @@ logger = logging.getLogger(__name__)
 _EMBEDDING_MODEL = "BAAI/bge-m3"
 
 # ──────────────────────────────────────────────────────────────
+# Constants
+# ──────────────────────────────────────────────────────────────
+
+_QDRANT_URL = settings.qdrant_url
+_QDRANT_API_KEY = settings.qdrant_api_key.get_secret_value()
+
+# ──────────────────────────────────────────────────────────────
 # Shared Resources
 # ──────────────────────────────────────────────────────────────
 
@@ -120,9 +127,10 @@ def create_vector_store(
     try:
         return QdrantVectorStore.from_documents(
             documents=list(chunks),
-            collection_name=collection_name,
-            client=_get_qdrant_client(),
             embedding=_get_embeddings(),
+            url=_QDRANT_URL,
+            api_key=_QDRANT_API_KEY,
+            collection_name=collection_name,
         )
 
     except Exception as exc:
