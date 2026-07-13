@@ -28,7 +28,6 @@ from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
 )
-from langchain_qdrant import QdrantVectorStore
 
 from services.rag.rag_pipeline import answer_question
 from services.stt.service import transcribe
@@ -41,7 +40,7 @@ def ask(
     *,
     audio_bytes: bytes,
     history: list[BaseMessage],
-    store: QdrantVectorStore,
+    collection_name: str,
 ) -> tuple[str, bytes, list[BaseMessage]]:
     """
     Execute the complete audio question-answering workflow.
@@ -51,24 +50,39 @@ def ask(
         2. RAG Pipeline
         3. Text-to-Speech
         4. Update conversation history
+
+    Returns:
+        answer,
+        synthesized audio,
+        updated conversation history.
     """
 
     logger.info("Starting audio pipeline.")
+
+    # ------------------------------------------------------------
+    # Speech-to-Text
+    # ------------------------------------------------------------
 
     query, language = transcribe(audio_bytes)
 
     language = _normalize_language(language)
 
-    logger.info(
-        "User query transcribed successfully."
-    )
+    logger.info("Speech successfully transcribed.")
+
+    # ------------------------------------------------------------
+    # RAG
+    # ------------------------------------------------------------
 
     answer = answer_question(
         query=query,
         history=history,
         language=language,
-        store=store,
+        collection_name=collection_name,
     )
+
+    # ------------------------------------------------------------
+    # Text-to-Speech
+    # ------------------------------------------------------------
 
     try:
         audio_response = synthesize(answer)
@@ -80,10 +94,14 @@ def ask(
 
         audio_response = b""
 
+    # ------------------------------------------------------------
+    # Conversation History
+    # ------------------------------------------------------------
+
     updated_history = _append_history(
-        history,
-        query,
-        answer,
+        history=history,
+        query=query,
+        answer=answer,
     )
 
     logger.info("Audio pipeline completed.")
@@ -105,7 +123,7 @@ def _append_history(
     answer: str,
 ) -> list[BaseMessage]:
     """
-    Append the latest interaction to the conversation history.
+    Return a new conversation history with the latest interaction appended.
     """
 
     return [
