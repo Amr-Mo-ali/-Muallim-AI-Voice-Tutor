@@ -1,13 +1,15 @@
 """
 FastAPI entrypoint.
 
-Responsibilities:
-    - Manage HTTP requests.
-    - Manage user sessions.
-    - Delegate work to application services.
+Responsibilities
+----------------
+- Expose HTTP endpoints.
+- Manage user sessions.
+- Delegate work to the application layer.
 
-This module intentionally contains no RAG business logic.
+No business logic lives here.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -19,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 import redis
+
 from fastapi import (
     FastAPI,
     File,
@@ -26,40 +29,29 @@ from fastapi import (
     HTTPException,
     UploadFile,
 )
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+
 from langchain_core.messages import (
     AIMessage,
     HumanMessage,
 )
-from opentelemetry.instrumentation.threading import (
-    ThreadingInstrumentor,
-)
 
 from config import settings
+
 from services.rag.rag_pipeline import (
-    answer_question,
     index_documents,
 )
-from services.stt import service as stt_service
-from services.tts import service as tts_service
 
-# ──────────────────────────────────────────────────────────────────────────────
-# logging
-# ──────────────────────────────────────────────────────────────────────────────
+from use_cases.chain import ask
 
 logger = logging.getLogger(__name__)
-
-# ──────────────────────────────────────────────────────────────────────────────
-# app
-# ──────────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="Muallim",
     version="1.0.0",
 )
-
-ThreadingInstrumentor().instrument()
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,67 +60,70 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ──────────────────────────────────────────────────────────────────────────────
-# constants
-# ──────────────────────────────────────────────────────────────────────────────
+executor = ThreadPoolExecutor(max_workers=4)
 
 _MAX_HISTORY = 10
 
-# ──────────────────────────────────────────────────────────────────────────────
-# infrastructure
-# ──────────────────────────────────────────────────────────────────────────────
 
-executor = ThreadPoolExecutor(max_workers=4)
-
-_sessions: dict[str, dict] = {}
-
-# ──────────────────────────────────────────────────────────────────────────────
-# helpers
-# ──────────────────────────────────────────────────────────────────────────────
-
-
-def _serialize_history(history: list) -> str:
-    return json.dumps(
-        [
-            {
-                "role": "human" if isinstance(msg, HumanMessage) else "ai",
-                "content": msg.content,
-            }
-            for msg in history
-        ]
-    )
-
-
-def _deserialize_history(history: str) -> list:
-    return [
-        HumanMessage(content=item["content"])
-        if item["role"] == "human"
-        else AIMessage(content=item["content"])
-        for item in json.loads(history)
-    ]
-
-
-async def _run_blocking(fn, *args):
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(executor, fn, *args)
-
+# ---------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------
 
 @lru_cache(maxsize=1)
-def _get_redis() -> redis.Redis:
+def get_redis() -> redis.Redis:
     return redis.Redis.from_url(
         settings.redis_url,
         decode_responses=True,
     )
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# routes
-# ──────────────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
+# Async helper
+# ---------------------------------------------------------------------
 
+async def run_blocking(fn, *args, **kwargs):
+    loop = asyncio.get_running_loop()
+
+    return await loop.run_in_executor(
+        executor,
+        lambda: fn(*args, **kwargs),
+    )
+
+
+# ---------------------------------------------------------------------
+# History
+# ---------------------------------------------------------------------
+
+def serialize_history(history):
+    return json.dumps(
+        [
+            {
+                "role": "human" if isinstance(m, HumanMessage) else "ai",
+                "content": m.content,
+            }
+            for m in history
+        ]
+    )
+
+
+def deserialize_history(data):
+    return [
+        HumanMessage(content=x["content"])
+        if x["role"] == "human"
+        else AIMessage(content=x["content"])
+        for x in json.loads(data)
+    ]
+
+
+# ---------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to Muallim"}
+    return {
+        "message": "Welcome to Muallim"
+    }
 
 
 @app.get("/ui")
@@ -137,38 +132,38 @@ def ui():
 
 
 @app.post("/upload")
-async def upload_pdf(
+async def upload(
     file: UploadFile = File(...),
 ):
     session_id = str(uuid.uuid4())
 
-    bytes_data = await file.read()
+    collection = f"session_{session_id}"
 
-    collection_name = f"session_{session_id}"
+    pdf = await file.read()
 
-    await _run_blocking(
+    await run_blocking(
         index_documents,
-        bytes_data,
-        collection_name,
+        pdf,
+        collection,
     )
 
-    redis_client = _get_redis()
+    redis = get_redis()
 
-    redis_client.hset(
+    redis.hset(
         f"session:{session_id}",
         mapping={
-            "collection_name": collection_name,
+            "collection_name": collection,
             "history": "[]",
         },
     )
 
-    redis_client.expire(
+    redis.expire(
         f"session:{session_id}",
-        60 * 60 * 24,
+        86400,
     )
 
     logger.info(
-        "Session %s created",
+        "Session created %s",
         session_id,
     )
 
@@ -177,55 +172,15 @@ async def upload_pdf(
     }
 
 
-@app.post("/chat/text")
-async def chat_text(
-    session_id: str = Form(...),
-    question: str = Form(...),
-    language: str = Form(default="Arabic"),
-):
-    redis_client = _get_redis()
-
-    session = redis_client.hgetall(
-        f"session:{session_id}"
-    )
-
-    if not session:
-        raise HTTPException(
-            status_code=404,
-            detail="Session not found.",
-        )
-
-    history = _deserialize_history(
-        session["history"]
-    )
-
-    answer, updated_history = await _run_blocking(
-        answer_question,
-        query=question,
-        history=history,
-        language=language,
-        collection_name=session["collection_name"],
-    )
-
-    redis_client.hset(
-        f"session:{session_id}",
-        "history",
-        _serialize_history(
-            updated_history[-_MAX_HISTORY:]
-        ),
-    )
-
-    return {
-        "answer": answer,
-    }
-
-
-@app.post("/chat/audio")
-async def chat_audio(
+@app.post("/ask")
+async def ask_audio(
     session_id: str = Form(...),
     audio_file: UploadFile = File(...),
 ):
-    session = _get_redis().hgetall(
+
+    redis = get_redis()
+
+    session = redis.hgetall(
         f"session:{session_id}"
     )
 
@@ -237,39 +192,27 @@ async def chat_audio(
 
     audio = await audio_file.read()
 
-    query, language = await _run_blocking(
-        stt_service.transcribe,
-        audio,
-    )
-
-    history = _deserialize_history(
+    history = deserialize_history(
         session["history"]
     )
 
-    answer, updated_history = await _run_blocking(
-        answer_question,
-        query=query,
+    answer, audio_response, history = await run_blocking(
+        ask,
+        audio_bytes=audio,
         history=history,
-        language=language,
         collection_name=session["collection_name"],
     )
 
-    speech = await _run_blocking(
-        tts_service.synthesize,
-        answer,
-    )
-
-    _get_redis().hset(
+    redis.hset(
         f"session:{session_id}",
         "history",
-        _serialize_history(
-            updated_history[-_MAX_HISTORY:]
+        serialize_history(
+            history[-_MAX_HISTORY:]
         ),
     )
 
     return {
         "answer": answer,
-        "query": query,
-        "audio": base64.b64encode(speech).decode(),
+        "audio": base64.b64encode(audio_response).decode(),
         "audio_format": "mp3",
     }
