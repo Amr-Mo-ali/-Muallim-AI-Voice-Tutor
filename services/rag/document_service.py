@@ -194,7 +194,7 @@ def _enrich_chunk_metadata(
 
     for index, chunk in enumerate(chunks):
 
-        metadata = chunk.metadata or {}
+        metadata = dict(chunk.metadata)
 
         metadata.setdefault(
             "source",
