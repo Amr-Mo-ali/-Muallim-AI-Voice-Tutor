@@ -44,6 +44,7 @@ from langchain_qdrant import QdrantVectorStore
 from services.rag.document_service import load_and_chunk
 from services.rag.vector_store import (
     get_or_create_vector_store,
+    load_vector_store,
 )
 from services.rag.query_rewriter import rewrite_query
 from services.rag.retriever import retrieve
@@ -102,7 +103,7 @@ def answer_question(
     query: str,
     history: list[BaseMessage],
     language: str,
-    store: QdrantVectorStore,
+    collection_name: str,
 ) -> str:
     """
     Execute the complete RAG inference pipeline.
@@ -121,6 +122,8 @@ def answer_question(
     """
 
     logger.info("Starting RAG pipeline.")
+
+    store = load_vector_store(collection_name)
 
     rewritten_query = rewrite_query(
         query=query,
