@@ -12,6 +12,7 @@ Contract:
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 
 from langchain_core.documents import Document
 
@@ -45,7 +46,7 @@ def _join_chunks(formatted_chunks: list[str]) -> str:
     return "\n\n--------------------\n\n".join(formatted_chunks)
 
 
-def build_context(chunks: list[Document]) -> str:
+def build_context(chunks: Sequence[Document]) -> str:
     """
     Build an LLM-ready context from retrieved document chunks.
     """

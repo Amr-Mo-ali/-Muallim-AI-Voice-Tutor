@@ -29,13 +29,20 @@ from langchain_core.messages import (
     HumanMessage,
 )
 
+from langfuse import get_client
+
 from services.rag.rag_pipeline import answer_question
 from services.stt.service import transcribe
 from services.tts.service import synthesize
 
+
+# ── env ───────────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
 
-
+_langfuse = get_client
+# ───────────────────────────────────────────────────────────────────────
+with _langfuse._start_as_current_otel_span_with_processed_media(as_type="trace", name="ask-request") as trace :
+        logger.info("Processing ask for user session")
 def ask(
     *,
     audio_bytes: bytes,
@@ -57,42 +64,57 @@ def ask(
         updated conversation history.
     """
 
-    logger.info("Starting audio pipeline.")
 
     # ------------------------------------------------------------
     # Speech-to-Text
     # ------------------------------------------------------------
 
-    query, language = transcribe(audio_bytes)
+    with _langfuse.start_as_current_observation(as_type="span", name="stt-request") as span:
+        logger.info("Starting audio pipeline.")
 
-    language = _normalize_language(language)
+        query, language = transcribe(audio_bytes)
 
-    logger.info("Speech successfully transcribed.")
+        language = _normalize_language(language)
 
+        logger.info("Speech successfully transcribed.")
+        span.update(output={"query":query ,"language": language})
     # ------------------------------------------------------------
     # RAG
     # ------------------------------------------------------------
-
-    answer = answer_question(
-        query=query,
-        history=history,
-        language=language,
-        collection_name=collection_name,
-    )
+    with _langfuse.start_as_current_observation(as_type="span", name="rag_pipeline") as span:
+        
+        answer = answer_question(
+            query=query,
+            history=history,
+            language=language,
+            collection_name=collection_name,
+        )
+        span.update(
+            input={
+            "query":query,
+            "history":history,
+            "language":language,
+            "collection_name":collection_name,
+        },
+        output={"answer":answer},
+        )
 
     # ------------------------------------------------------------
     # Text-to-Speech
     # ------------------------------------------------------------
+    with _langfuse.start_as_current_observation(as_type="spen", name="tts_response") as spen:
+        try:
+            audio_response = synthesize(answer)
 
-    try:
-        audio_response = synthesize(answer)
+        except Exception:
+            logger.exception(
+                "TTS failed. Returning text only."
+            )
 
-    except Exception:
-        logger.exception(
-            "TTS failed. Returning text only."
-        )
-
-        audio_response = b""
+            audio_response = b""
+        span.update(output={
+                    "audio_length": len(audio_response),
+                })
 
     # ------------------------------------------------------------
     # Conversation History
